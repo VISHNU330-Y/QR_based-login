@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="QR-Based Gate Pass System — Secure Campus Entry & Exit Management">
+    <title>Gate Pass System — Login</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo">🔐</div>
+                <h1>Gate Pass System</h1>
+                <p>QR-Based Campus Security</p>
+            </div>
+
+            <div id="loginError" class="login-error"></div>
+
+            <form class="login-form" id="loginForm">
+                <div class="form-group">
+                    <label class="form-label" for="username">Username / Roll Number</label>
+                    <input class="form-input" type="text" id="username" placeholder="e.g. STU001, HOD_CSE" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input class="form-input" type="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg" id="loginBtn">
+                    🚀 Sign In
+                </button>
+            </form>
+
+            <div class="demo-accounts">
+                <h4>Quick Demo Login</h4>
+                <div class="demo-grid">
+                    <button class="demo-btn" onclick="fillDemo('STU001', 'pass123')">
+                        <span class="demo-role">👨‍🎓 Student</span>
+                        STU001
+                    </button>
+                    <button class="demo-btn" onclick="fillDemo('HOD_CSE', 'pass123')">
+                        <span class="demo-role">👨‍🏫 HOD (CSE)</span>
+                        HOD_CSE
+                    </button>
+                    <button class="demo-btn" onclick="fillDemo('WARDEN1', 'pass123')">
+                        <span class="demo-role">🧑‍💼 Warden</span>
+                        WARDEN1
+                    </button>
+                    <button class="demo-btn" onclick="fillDemo('SEC001', 'pass123')">
+                        <span class="demo-role">🛡️ Security</span>
+                        SEC001
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // Redirect if already logged in
+        const existingUser = getUser();
+        if (existingUser && getToken()) {
+            window.location.href = '/' + existingUser.role;
+        }
+
+        function fillDemo(username, password) {
+            document.getElementById('username').value = username;
+            document.getElementById('password').value = password;
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errorEl = document.getElementById('loginError');
+            const btn = document.getElementById('loginBtn');
+            errorEl.style.display = 'none';
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            if (!username || !password) {
+                errorEl.textContent = 'Please fill in all fields';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Signing in...';
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    errorEl.textContent = data.error || 'Login failed';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                saveAuth(data.token, data.user);
+                window.location.href = '/' + data.user.role;
+
+            } catch (err) {
+                errorEl.textContent = 'Network error. Is the server running?';
+                errorEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Sign In';
+            }
+        });
+    </script>
+</body>
+</html>

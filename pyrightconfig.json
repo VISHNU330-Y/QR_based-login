@@ -1,0 +1,10 @@
+{
+    "executionEnvironments": [
+        {
+            "root": ".",
+            "extraPaths": ["."]
+        }
+    ],
+    "reportMissingModuleSource": false,
+    "reportMissingImports": false
+}

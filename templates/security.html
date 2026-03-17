@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Gate — Gate Pass System</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+    <div class="app-container" id="app">
+        <div id="navbar"></div>
+
+        <div class="scanner-section">
+            <!-- Left: Scanner -->
+            <div>
+                <div class="scanner-area card" style="animation-delay:0.1s">
+                    <h2 style="margin-bottom:16px">📷 QR Code Scanner</h2>
+                    <div id="reader"></div>
+                    <div id="scannerStatus" style="margin-top:12px;font-size:0.9rem;color:var(--text-secondary)">
+                        Click "Start Camera" to begin scanning
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px">
+                        <button class="btn btn-primary btn-sm" id="startScanBtn" onclick="startScanner()">📷 Start Camera</button>
+                        <button class="btn btn-ghost btn-sm" id="stopScanBtn" onclick="stopScanner()" style="display:none">⏹ Stop</button>
+                    </div>
+
+                    <!-- Manual QR input fallback -->
+                    <div class="manual-qr-section">
+                        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px">
+                            Or paste QR data manually:
+                        </p>
+                        <textarea id="manualQrInput" placeholder='Paste QR code data here...'></textarea>
+                        <button class="btn btn-primary btn-sm" onclick="verifyManualQR()">🔍 Verify</button>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="card" style="margin-top:16px;animation-delay:0.3s">
+                    <div class="card-header">
+                        <h2>📋 Recent Activity</h2>
+                        <button class="btn btn-ghost btn-sm" onclick="loadLogs()">🔄 Refresh</button>
+                    </div>
+                    <div class="activity-log" id="activityLog">
+                        <div class="empty-state" style="padding:30px 10px">
+                            <div class="empty-icon">📋</div>
+                            <p>No activity yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Student Details -->
+            <div class="student-details-panel card" id="detailsPanel" style="animation-delay:0.2s">
+                <div id="detailsContent">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <h3>Scan a QR Code</h3>
+                        <p>Student details will appear here after scanning</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        const user = requireAuth('security');
+        if (user) init();
+
+        let html5Qr = null;
+        let currentPassId = null;
+        let currentQrType = null;
+
+        function init() {
+            document.getElementById('navbar').innerHTML = renderNavbar(user, '🛡️ Security Guard');
+            loadLogs();
+        }
+
+        // ── Camera Scanner ──
+        function startScanner() {
+            document.getElementById('scannerStatus').textContent = 'Starting camera...';
+            document.getElementById('startScanBtn').style.display = 'none';
+            document.getElementById('stopScanBtn').style.display = 'inline-flex';
+
+            html5Qr = new Html5Qrcode("reader");
+            html5Qr.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess,
+                () => {}
+            ).then(() => {
+                document.getElementById('scannerStatus').textContent = '📷 Camera active — Hold QR code in view';
+            }).catch(err => {
+                document.getElementById('scannerStatus').textContent = '❌ Camera not available. Use manual input below.';
+                document.getElementById('startScanBtn').style.display = 'inline-flex';
+                document.getElementById('stopScanBtn').style.display = 'none';
+            });
+        }
+
+        function stopScanner() {
+            if (html5Qr) {
+                html5Qr.stop().then(() => {
+                    html5Qr.clear();
+                    document.getElementById('scannerStatus').textContent = 'Scanner stopped';
+                    document.getElementById('startScanBtn').style.display = 'inline-flex';
+                    document.getElementById('stopScanBtn').style.display = 'none';
+                }).catch(() => {});
+            }
+        }
+
+        async function onScanSuccess(decodedText) {
+            // Pause scanning after successful read
+            if (html5Qr) {
+                try { await html5Qr.stop(); } catch(e) {}
+                document.getElementById('startScanBtn').style.display = 'inline-flex';
+                document.getElementById('stopScanBtn').style.display = 'none';
+            }
+            document.getElementById('scannerStatus').textContent = '✅ QR scanned! Verifying...';
+            verifyQR(decodedText);
+        }
+
+        function verifyManualQR() {
+            const data = document.getElementById('manualQrInput').value.trim();
+            if (!data) {
+                showToast('Please paste QR data', 'error');
+                return;
+            }
+            verifyQR(data);
+        }
+
+        // ── Verify QR ──
+        async function verifyQR(qrData) {
+            const panel = document.getElementById('detailsContent');
+            panel.innerHTML = '<div class="spinner"></div>';
+
+            try {
+                const data = await apiFetch('/api/security/verify', {
+                    method: 'POST',
+                    body: JSON.stringify({ qr_data: qrData })
+                });
+
+                currentPassId = data.gate_pass.id;
+                currentQrType = data.qr_type;
+
+                const s = data.student;
+                const gp = data.gate_pass;
+                const initials = s.name ? s.name.split(' ').map(n => n[0]).join('') : '?';
+                const isValid = data.valid;
+
+                panel.innerHTML = `
+                    <div style="text-align:center">
+                        <div class="student-photo-large">${initials}</div>
+                        <h2 style="margin-bottom:4px">${s.name}</h2>
+                        <p style="color:var(--text-secondary)">${s.roll_no} • ${s.department}</p>
+                        <div style="margin:12px 0">
+                            ${isValid ?
+                                `<span class="badge badge-approved" style="font-size:0.9rem;padding:8px 16px">✅ ${data.status_message}</span>` :
+                                `<span class="badge badge-rejected" style="font-size:0.9rem;padding:8px 16px">❌ ${data.status_message}</span>`
+                            }
+                        </div>
+                        <div style="margin:8px 0">
+                            <span class="badge ${data.qr_type === 'exit' ? 'badge-approved' : 'badge-active'}">
+                                ${data.qr_type === 'exit' ? '🟢 Exit QR' : '🔵 Entry QR'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="label">📅 Date</span>
+                            <span class="value">${formatDate(gp.date)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">⏰ Exit Time</span>
+                            <span class="value">${formatTime(gp.exit_time)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">⏳ Return Time</span>
+                            <span class="value">${formatTime(gp.return_time)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">📍 Destination</span>
+                            <span class="value">${gp.destination}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">🏫 Year</span>
+                            <span class="value">${s.year || '-'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">🏠 Hostel</span>
+                            <span class="value">${s.hostel_block || '-'}</span>
+                        </div>
+                        <div class="detail-item" style="grid-column: span 2">
+                            <span class="label">📌 Pass Status</span>
+                            <span class="value">${getStatusBadge(gp.pass_status)}</span>
+                        </div>
+                    </div>
+
+                    ${isValid ? `
+                    <div style="margin-top:20px;text-align:center">
+                        ${data.qr_type === 'exit' ?
+                            `<button class="btn btn-success btn-lg" style="width:100%" onclick="allowExit()">
+                                🚪 Allow Exit
+                            </button>` :
+                            `<button class="btn btn-primary btn-lg" style="width:100%" onclick="allowEntry()">
+                                🏠 Allow Entry
+                            </button>`
+                        }
+                    </div>` : `
+                    <div style="margin-top:20px;text-align:center">
+                        <button class="btn btn-ghost btn-lg" style="width:100%" onclick="resetScanner()">
+                            🔄 Scan Another
+                        </button>
+                    </div>`
+                    }
+                `;
+
+            } catch (err) {
+                panel.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">❌</div>
+                        <h3>Verification Failed</h3>
+                        <p style="color:var(--accent-red)">${err.message || 'Invalid or fake QR code'}</p>
+                        <button class="btn btn-ghost" style="margin-top:16px" onclick="resetScanner()">🔄 Try Again</button>
+                    </div>`;
+            }
+        }
+
+        // ── Allow Exit ──
+        async function allowExit() {
+            if (!currentPassId) return;
+            try {
+                await apiFetch(`/api/security/allow-exit/${currentPassId}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ gate_number: 'Gate 1' })
+                });
+                showToast('Exit recorded successfully!', 'success');
+                document.getElementById('detailsContent').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon" style="font-size:4rem">✅</div>
+                        <h3 style="color:var(--accent-green)">Exit Recorded!</h3>
+                        <p>Student has been allowed to exit</p>
+                        <button class="btn btn-primary" style="margin-top:16px" onclick="resetScanner()">
+                            📷 Scan Next
+                        </button>
+                    </div>`;
+                loadLogs();
+            } catch (err) {}
+        }
+
+        // ── Allow Entry ──
+        async function allowEntry() {
+            if (!currentPassId) return;
+            try {
+                await apiFetch(`/api/security/allow-entry/${currentPassId}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ gate_number: 'Gate 1' })
+                });
+                showToast('Entry recorded! Pass completed.', 'success');
+                document.getElementById('detailsContent').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon" style="font-size:4rem">✅</div>
+                        <h3 style="color:var(--accent-green)">Entry Recorded!</h3>
+                        <p>Pass has been marked as completed</p>
+                        <button class="btn btn-primary" style="margin-top:16px" onclick="resetScanner()">
+                            📷 Scan Next
+                        </button>
+                    </div>`;
+                loadLogs();
+            } catch (err) {}
+        }
+
+        function resetScanner() {
+            currentPassId = null;
+            currentQrType = null;
+            document.getElementById('detailsContent').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <h3>Scan a QR Code</h3>
+                    <p>Student details will appear here after scanning</p>
+                </div>`;
+            document.getElementById('manualQrInput').value = '';
+            document.getElementById('scannerStatus').textContent = 'Click "Start Camera" to scan';
+        }
+
+        // ── Activity Log ──
+        async function loadLogs() {
+            try {
+                const data = await apiFetch('/api/security/logs');
+                const logs = data.logs || [];
+
+                if (logs.length === 0) {
+                    document.getElementById('activityLog').innerHTML = `
+                        <div class="empty-state" style="padding:30px 10px">
+                            <div class="empty-icon">📋</div>
+                            <p>No activity yet</p>
+                        </div>`;
+                    return;
+                }
+
+                document.getElementById('activityLog').innerHTML = logs.map(log => `
+                    <div class="log-entry">
+                        <div class="log-icon ${log.action_type}">
+                            ${log.action_type === 'exit' ? '🚪' : '🏠'}
+                        </div>
+                        <div class="log-content">
+                            <div class="log-text">
+                                <strong>${log.student_name}</strong> (${log.roll_no})
+                                — ${log.action_type === 'exit' ? 'Exited' : 'Entered'}
+                            </div>
+                            <div class="log-time">
+                                ${log.department} • ${log.destination} • ${formatDate(log.timestamp)}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {}
+        }
+    </script>
+</body>
+</html>

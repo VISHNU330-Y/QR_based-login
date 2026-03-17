@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard — Gate Pass System</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="app-container" id="app">
+        <!-- Navbar injected by JS -->
+        <div id="navbar"></div>
+
+        <!-- Tabs -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('apply')">📝 Apply</button>
+            <button class="tab-btn" onclick="switchTab('passes')">📋 My Passes</button>
+        </div>
+
+        <!-- Apply Tab -->
+        <div class="tab-content active" id="tab-apply">
+            <div class="card" style="animation-delay:0.1s">
+                <div class="card-header">
+                    <h2>📝 Apply for Outing</h2>
+                </div>
+                <form id="applyForm">
+                    <div class="form-group">
+                        <label class="form-label">Reason for Outing</label>
+                        <textarea class="form-textarea" id="reason" placeholder="Enter the reason for your outing..." required></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input class="form-input" type="date" id="date" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Destination</label>
+                            <input class="form-input" type="text" id="destination" placeholder="e.g. City Hospital" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Exit Time</label>
+                            <input class="form-input" type="time" id="exitTime" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Expected Return Time</label>
+                            <input class="form-input" type="time" id="returnTime" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Parent Contact Number</label>
+                        <input class="form-input" type="tel" id="parentContact" placeholder="e.g. 9876543210">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">🚀 Submit Request</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Passes Tab -->
+        <div class="tab-content" id="tab-passes">
+            <div class="filter-tabs" id="filterTabs">
+                <button class="filter-tab active" onclick="filterPasses('all')">All</button>
+                <button class="filter-tab" onclick="filterPasses('requested')">⏳ Pending</button>
+                <button class="filter-tab" onclick="filterPasses('approved')">✅ Approved</button>
+                <button class="filter-tab" onclick="filterPasses('completed')">✔ Completed</button>
+            </div>
+            <div class="request-list" id="passesList"></div>
+        </div>
+
+        <!-- QR Modal -->
+        <div class="modal-overlay" id="qrModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>🎟️ Your QR Codes</h2>
+                    <button class="modal-close" onclick="closeQrModal()">✕</button>
+                </div>
+                <div id="qrContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        const user = requireAuth('student');
+        if (user) init();
+
+        let allPasses = [];
+        let currentFilter = 'all';
+
+        function init() {
+            document.getElementById('navbar').innerHTML = renderNavbar(user, '👨‍🎓 Student');
+            // Set default date to today
+            document.getElementById('date').valueAsDate = new Date();
+            loadPasses();
+        }
+
+        // ── Tab switching ──
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+            if (tab === 'passes') loadPasses();
+        }
+
+        // ── Apply form ──
+        document.getElementById('applyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Submitting...';
+
+            try {
+                const data = await apiFetch('/api/student/apply', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        reason: document.getElementById('reason').value,
+                        date: document.getElementById('date').value,
+                        destination: document.getElementById('destination').value,
+                        exit_time: document.getElementById('exitTime').value,
+                        return_time: document.getElementById('returnTime').value,
+                        parent_contact: document.getElementById('parentContact').value
+                    })
+                });
+
+                showToast('Gate pass request submitted!', 'success');
+                document.getElementById('applyForm').reset();
+                document.getElementById('date').valueAsDate = new Date();
+
+                // Switch to passes tab
+                switchTab('passes');
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+                document.querySelectorAll('.tab-btn')[0].classList.remove('active');
+
+            } catch (err) {
+                // Error shown by apiFetch
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Submit Request';
+            }
+        });
+
+        // ── Load passes ──
+        async function loadPasses() {
+            try {
+                const data = await apiFetch('/api/student/passes');
+                allPasses = data.passes || [];
+                renderPasses();
+            } catch (err) {}
+        }
+
+        function filterPasses(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            renderPasses();
+        }
+
+        function renderPasses() {
+            const list = document.getElementById('passesList');
+            let filtered = allPasses;
+
+            if (currentFilter === 'requested') {
+                filtered = allPasses.filter(p => ['requested', 'hod_approved'].includes(p.pass_status));
+            } else if (currentFilter === 'approved') {
+                filtered = allPasses.filter(p => ['warden_approved', 'exit_used'].includes(p.pass_status));
+            } else if (currentFilter === 'completed') {
+                filtered = allPasses.filter(p => p.pass_status === 'completed');
+            }
+
+            if (filtered.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <h3>No passes found</h3>
+                        <p>Apply for an outing to get started</p>
+                    </div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map((p, i) => `
+                <div class="request-card" style="animation-delay:${i * 0.1}s">
+                    <div class="request-card-header">
+                        <div>
+                            <strong>Pass #${p.id}</strong>
+                            <span style="color:var(--text-muted); margin-left:8px">${formatDate(p.date)}</span>
+                        </div>
+                        ${getStatusBadge(p.pass_status)}
+                    </div>
+                    ${renderPipeline(p.pass_status)}
+                    <div class="request-details">
+                        <div class="request-detail">
+                            <span class="detail-label">📍 Destination</span>
+                            <span class="detail-value">${p.destination}</span>
+                        </div>
+                        <div class="request-detail">
+                            <span class="detail-label">⏰ Exit</span>
+                            <span class="detail-value">${formatTime(p.exit_time)}</span>
+                        </div>
+                        <div class="request-detail">
+                            <span class="detail-label">⏳ Return</span>
+                            <span class="detail-value">${formatTime(p.return_time)}</span>
+                        </div>
+                        <div class="request-detail">
+                            <span class="detail-label">📄 Reason</span>
+                            <span class="detail-value">${p.reason}</span>
+                        </div>
+                    </div>
+                    <div class="request-actions">
+                        ${['warden_approved', 'exit_used'].includes(p.pass_status) ?
+                            `<button class="btn btn-primary btn-sm" onclick="viewQR(${p.id})">🎟️ View QR Codes</button>` : ''}
+                        ${['requested', 'hod_approved'].includes(p.pass_status) ?
+                            `<button class="btn btn-danger btn-sm" onclick="cancelPass(${p.id})">🚫 Cancel</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ── QR Modal ──
+        async function viewQR(passId) {
+            document.getElementById('qrModal').classList.add('active');
+            document.getElementById('qrContent').innerHTML = '<div class="spinner"></div>';
+
+            try {
+                const data = await apiFetch(`/api/student/qr/${passId}`);
+                const qr = data.qr_codes;
+                const pass = data.gate_pass;
+
+                let html = '<div class="qr-container">';
+
+                if (qr.exit) {
+                    html += `
+                        <div class="qr-card exit">
+                            <div class="qr-label">🟢 Exit QR</div>
+                            <img src="data:image/png;base64,${qr.exit.image}" alt="Exit QR Code" id="exitQrImg">
+                            <div class="qr-status">${qr.exit.is_used ? '❌ Used' : '✅ Active'}</div>
+                            <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="downloadQR('exitQrImg', 'exit_qr_pass_${passId}.png')">⬇ Download</button>
+                        </div>`;
+                }
+
+                if (qr.entry) {
+                    html += `
+                        <div class="qr-card entry">
+                            <div class="qr-label">🔵 Entry QR</div>
+                            <img src="data:image/png;base64,${qr.entry.image}" alt="Entry QR Code" id="entryQrImg">
+                            <div class="qr-status">${qr.entry.is_used ? '❌ Used' : '✅ Active'}</div>
+                            <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="downloadQR('entryQrImg', 'entry_qr_pass_${passId}.png')">⬇ Download</button>
+                        </div>`;
+                }
+
+                html += '</div>';
+                document.getElementById('qrContent').innerHTML = html;
+
+            } catch (err) {
+                document.getElementById('qrContent').innerHTML = '<p style="color:var(--accent-red);text-align:center">Failed to load QR codes</p>';
+            }
+        }
+
+        function closeQrModal() {
+            document.getElementById('qrModal').classList.remove('active');
+        }
+
+        function downloadQR(imgId, filename) {
+            const img = document.getElementById(imgId);
+            const link = document.createElement('a');
+            link.href = img.src;
+            link.download = filename;
+            link.click();
+        }
+
+        async function cancelPass(passId) {
+            if (!confirm('Cancel this gate pass request?')) return;
+            try {
+                await apiFetch(`/api/student/cancel/${passId}`, { method: 'POST' });
+                showToast('Gate pass cancelled', 'success');
+                loadPasses();
+            } catch (err) {}
+        }
+
+        // Close modal on overlay click
+        document.getElementById('qrModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) closeQrModal();
+        });
+    </script>
+</body>
+</html>
