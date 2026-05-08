@@ -10,6 +10,7 @@ behavioral pattern detection — no external API required.
 """
 
 import re
+import math
 from datetime import datetime, timedelta
 from models.database import query_db
 
@@ -36,18 +37,41 @@ HIGH_RISK_KEYWORDS = [
 ]
 
 SUSPICIOUS_PATTERNS = [
-    r'\b(?:alcohol|liquor|beer|wine|drink)\b',
-    r'\b(?:smoke|smoking|cigarette)\b',
-    r'\b(?:casino|gambling|bet)\b',
-    r'\b(?:fight|violence|weapon)\b',
+    r'\b(?:alcohol|liquor|beer|wine|drink|daru|daaru)\b',
+    r'\b(?:smoke|smoking|cigarette|vape|vaping|weed|ganja)\b',
+    r'\b(?:casino|gambling|bet|betting|satta)\b',
+    r'\b(?:fight|violence|weapon|knife|gun|blade)\b',
+    r'\b(?:drug|drugs|pills|overdose|inject)\b',
+    r'\b(?:rave|hookah|shisha)\b',
+]
+
+# ── CRITICAL SAFETY PATTERNS (immediate escalation) ───────────
+CRITICAL_SAFETY_PATTERNS = [
+    r'\b(?:suicide|suicidal|kill\s*(?:my)?\s*self|end\s*(?:my)?\s*life)\b',
+    r'\b(?:self[\s\-]*harm|cut\s*(?:my)?\s*self|hurt\s*(?:my)?\s*self|wrist)\b',
+    r'\b(?:want\s*to\s*die|wanna\s*die|better\s*off\s*dead|no\s*reason\s*to\s*live)\b',
+    r'\b(?:jump\s*(?:off|from)|hang\s*(?:my)?\s*self|poison|drown\s*(?:my)?\s*self)\b',
+    r'\b(?:kill\s*(?:him|her|them|someone|people)|murder|stab|shoot)\b',
+    r'\b(?:bomb|explosive|attack|terror|assault)\b',
+    r'\b(?:rape|molest|abuse|harass|trafficking)\b',
+    r'\b(?:kidnap|abduct|ransom|hostage)\b',
+    r'\b(?:run\s*away|escape|never\s*(?:come|coming)\s*back|disappear)\b',
+    r'\b(?:depression|depressed|hopeless|worthless|nobody\s*cares)\b',
+    r'\b(?:cutting|bleeding|scars|razor)\b',
+    r'\b(?:final\s*goodbye|last\s*day|farewell|end\s*it)\b',
+]
+
+# ── PROFANITY / NONSENSE PATTERNS ─────────────────────────────
+PROFANITY_PATTERNS = [
+    r'\b(?:fuck|shit|ass|bitch|bastard|damn|crap|dick|pussy)\b',
+    r'\b(?:wtf|stfu|lmao|lmfao)\b',
+    r'\b(?:chutiya|madarchod|bhenchod|bsdk|mc|bc|gandu|saala)\b',
 ]
 
 DESTINATION_RISK = {
-    # Low risk destinations
     'hospital': -20, 'clinic': -20, 'medical': -20, 'pharmacy': -10,
     'college': -10, 'university': -10, 'library': -10,
     'home': -15, 'bank': -10, 'government': -10, 'court': -10,
-    # High risk destinations
     'mall': 10, 'movie': 15, 'theatre': 15, 'cinema': 15,
     'restaurant': 5,  'market': 5,
 }
@@ -57,26 +81,157 @@ DESTINATION_RISK = {
 #  CORE RISK SCORING  (0–100, higher = riskier)
 # ══════════════════════════════════════════════════════════════
 
+def _check_reason_quality(reason: str) -> dict:
+    """
+    Evaluate how detailed and genuine a reason text appears.
+    Returns quality assessment with score penalty and flags.
+    """
+    words = reason.split()
+    word_count = len(words)
+    unique_words = len(set(words))
+    has_numbers = bool(re.search(r'\d', reason))
+    alpha_ratio = sum(1 for c in reason if c.isalpha()) / max(len(reason), 1)
+    repeated_chars = bool(re.search(r'(.)\1{4,}', reason))
+    all_same_word = (unique_words == 1 and word_count > 2)
+    gibberish = bool(re.search(r'[^a-z\s]{5,}', reason)) or repeated_chars or all_same_word
+
+    result = {'penalty': 0, 'flags': [], 'quality': 'good'}
+
+    if word_count == 0:
+        result['penalty'] = 25
+        result['flags'].append('Empty reason provided')
+        result['quality'] = 'empty'
+    elif word_count <= 2:
+        result['penalty'] = 15
+        result['flags'].append('Very vague reason — only 1-2 words')
+        result['quality'] = 'vague'
+    elif word_count <= 4 and not has_numbers:
+        result['penalty'] = 8
+        result['flags'].append('Short reason with little detail')
+        result['quality'] = 'brief'
+
+    if gibberish:
+        result['penalty'] += 20
+        result['flags'].append('Reason appears to be gibberish or spam')
+        result['quality'] = 'gibberish'
+
+    if alpha_ratio < 0.4 and word_count > 0:
+        result['penalty'] += 10
+        result['flags'].append('Reason contains excessive non-text characters')
+
+    return result
+
+
+def _detect_safety_crisis(text: str) -> dict:
+    """
+    Detect critical safety concerns like self-harm, violence, or threats.
+    Returns crisis assessment with matched patterns.
+    """
+    crisis = {'is_critical': False, 'matched': [], 'category': None, 'profanity': []}
+
+    for pattern in CRITICAL_SAFETY_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            crisis['is_critical'] = True
+            crisis['matched'].append(m.group())
+
+    if crisis['matched']:
+        harm_words = {'suicide', 'suicidal', 'kill self', 'end life', 'die',
+                      'self-harm', 'cut self', 'hurt self', 'wrist',
+                      'depression', 'depressed', 'hopeless', 'worthless',
+                      'cutting', 'bleeding', 'razor', 'final goodbye',
+                      'jump', 'hang', 'poison', 'drown'}
+        violence_words = {'kill', 'murder', 'stab', 'shoot', 'bomb',
+                          'explosive', 'attack', 'terror', 'assault',
+                          'kidnap', 'abduct', 'hostage'}
+
+        matched_lower = ' '.join(crisis['matched']).lower()
+        if any(w in matched_lower for w in harm_words):
+            crisis['category'] = 'self_harm'
+        elif any(w in matched_lower for w in violence_words):
+            crisis['category'] = 'violence_threat'
+        else:
+            crisis['category'] = 'safety_concern'
+
+    for pattern in PROFANITY_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            crisis['profanity'].append(m.group())
+
+    return crisis
+
+
 def calculate_risk_score(gate_pass: dict, student_id: int) -> dict:
     """
-    Multi-factor AI risk scorer.
+    Multi-factor AI risk scorer with safety-aware analysis.
     Returns:
         {
           score: int (0-100),
-          level: str ('low'|'medium'|'high'),
+          level: str ('low'|'medium'|'high'|'critical'),
           factors: list[{name, impact, reason}],
           recommendation: str,
-          nlp: { reason_category, suspicious_keywords }
+          nlp: { reason_category, suspicious_keywords },
+          safety_alert: dict | None
         }
     """
-    score = 30  # neutral baseline
+    score = 35  # neutral baseline
     factors = []
 
-    reason      = (gate_pass.get('reason') or '').lower()
-    destination = (gate_pass.get('destination') or '').lower()
+    reason      = (gate_pass.get('reason') or '').lower().strip()
+    destination = (gate_pass.get('destination') or '').lower().strip()
     exit_time   = gate_pass.get('exit_time', '08:00')
     return_time = gate_pass.get('return_time', '18:00')
     pass_date   = gate_pass.get('date', datetime.now().strftime('%Y-%m-%d'))
+    combined_text = f"{reason} {destination}"
+
+    safety_alert = None
+
+    # ══ CRITICAL SAFETY CHECK (highest priority) ══════════════
+    crisis = _detect_safety_crisis(combined_text)
+    if crisis['is_critical']:
+        score = 100
+        safety_alert = {
+            'type': crisis['category'],
+            'matched_terms': crisis['matched'],
+            'action_required': True,
+        }
+        if crisis['category'] == 'self_harm':
+            factors.append({'name': '🚨 WELFARE ALERT', 'impact': 'critical',
+                'reason': 'Reason contains self-harm / suicidal language — '
+                          'IMMEDIATELY contact counselor and guardians'})
+            safety_alert['instructions'] = (
+                'DO NOT approve or reject. Escalate to student counselor '
+                'and contact parent/guardian immediately. This student may need help.'
+            )
+        elif crisis['category'] == 'violence_threat':
+            factors.append({'name': '🚨 THREAT ALERT', 'impact': 'critical',
+                'reason': 'Reason contains violent / threatening language — '
+                          'escalate to security and administration immediately'})
+            safety_alert['instructions'] = (
+                'DO NOT approve. Report to campus security and administration. '
+                'This may indicate an active threat.'
+            )
+        else:
+            factors.append({'name': '🚨 SAFETY CONCERN', 'impact': 'critical',
+                'reason': 'Reason contains alarming content — review and escalate'})
+            safety_alert['instructions'] = (
+                'This request contains concerning language. '
+                'Contact the student directly and involve relevant authorities.'
+            )
+
+    # ── Profanity check (even if not critical) ────────────────
+    if crisis['profanity']:
+        score += 20
+        factors.append({'name': 'Inappropriate Language', 'impact': 'high',
+            'reason': f'Reason contains profanity/offensive terms'})
+
+    # ── Reason quality check ──────────────────────────────────
+    quality = _check_reason_quality(reason)
+    if quality['penalty'] > 0:
+        score += quality['penalty']
+        for flag in quality['flags']:
+            factors.append({'name': 'Reason Quality', 'impact': 'medium' if quality['penalty'] < 15 else 'high',
+                'reason': flag})
 
     # ── Factor 1: Exit time risk ──────────────────────────────
     try:
@@ -132,10 +287,12 @@ def calculate_risk_score(gate_pass: dict, student_id: int) -> dict:
 
     # ── Factor 4: NLP Reason Analysis ─────────────────────────
     nlp_category = 'general'
+    if crisis['is_critical']:
+        nlp_category = 'critical_safety'
     suspicious_found = []
 
-    low_hits  = [w for w in LOW_RISK_KEYWORDS  if w in reason]
-    high_hits = [w for w in HIGH_RISK_KEYWORDS if w in reason]
+    low_hits  = [w for w in LOW_RISK_KEYWORDS  if re.search(r'\b' + re.escape(w) + r'\b', reason)]
+    high_hits = [w for w in HIGH_RISK_KEYWORDS if re.search(r'\b' + re.escape(w) + r'\b', reason)]
 
     for pattern in SUSPICIOUS_PATTERNS:
         m = re.search(pattern, reason, re.IGNORECASE)
@@ -146,17 +303,22 @@ def calculate_risk_score(gate_pass: dict, student_id: int) -> dict:
         score += 35
         factors.append({'name': 'Suspicious Content', 'impact': 'high',
                          'reason': f'Reason contains flagged terms: {", ".join(suspicious_found)}'})
-        nlp_category = 'suspicious'
+        if nlp_category != 'critical_safety':
+            nlp_category = 'suspicious'
     elif high_hits:
         score += 15
         factors.append({'name': 'Leisure Activity', 'impact': 'medium',
                          'reason': f'Reason suggests leisure: {", ".join(high_hits[:3])}'})
-        nlp_category = 'leisure'
+        if nlp_category != 'critical_safety':
+            nlp_category = 'leisure'
     elif low_hits:
         score -= 15
         factors.append({'name': 'Valid Reason', 'impact': 'low',
                          'reason': f'Genuine reason detected: {", ".join(low_hits[:3])}'})
-        nlp_category = 'valid'
+        if nlp_category != 'critical_safety':
+            nlp_category = 'valid'
+    elif quality['quality'] in ('vague', 'empty', 'gibberish') and not crisis['is_critical']:
+        nlp_category = 'insufficient'
 
     # ── Factor 5: Destination analysis ────────────────────────
     dest_delta = 0
@@ -229,17 +391,26 @@ def calculate_risk_score(gate_pass: dict, student_id: int) -> dict:
     # ── Clamp + Classify ──────────────────────────────────────
     score = max(0, min(100, score))
 
-    if score <= 33:
+    if safety_alert:
+        level = 'critical'
+        score = 100
+        recommendation = ('🚨 CRITICAL — This request has been flagged for '
+                          'immediate attention. Do NOT process normally. '
+                          'Follow the safety instructions above.')
+    elif score <= 30:
         level = 'low'
         recommendation = '✅ Low risk — safe to approve quickly.'
-    elif score <= 66:
+    elif score <= 55:
         level = 'medium'
         recommendation = '⚠️ Medium risk — review details before approving.'
-    else:
+    elif score <= 75:
         level = 'high'
         recommendation = '🔴 High risk — verify with student or parent before approving.'
+    else:
+        level = 'high'
+        recommendation = '🔴 Very high risk — strongly consider rejecting or require parent confirmation.'
 
-    return {
+    result = {
         'score': score,
         'level': level,
         'factors': factors,
@@ -251,6 +422,9 @@ def calculate_risk_score(gate_pass: dict, student_id: int) -> dict:
             'high_risk_keywords': high_hits,
         }
     }
+    if safety_alert:
+        result['safety_alert'] = safety_alert
+    return result
 
 
 # ══════════════════════════════════════════════════════════════

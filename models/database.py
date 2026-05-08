@@ -83,6 +83,19 @@ def init_db():
             FOREIGN KEY (pass_id) REFERENCES gate_passes(id),
             FOREIGN KEY (security_guard_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            type TEXT DEFAULT 'info' CHECK(type IN ('info','success','warning','error')),
+            pass_id INTEGER,
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (pass_id) REFERENCES gate_passes(id)
+        );
     ''')
 
     conn.commit()

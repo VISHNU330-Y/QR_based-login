@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from models.database import query_db, execute_db
 from utils.jwt_utils import login_required
 from utils.qr_utils import generate_qr_pair
+from routes.notifications import create_notification
 
 warden_bp = Blueprint('warden', __name__)
 
@@ -89,6 +90,14 @@ def approve_request(pass_id):
          qr_pair['entry']['image'], qr_pair['entry']['expiry'])
     )
 
+    create_notification(
+        gate_pass['student_id'],
+        '🎉 Pass Fully Approved!',
+        f"Your gate pass #{pass_id} has been approved by the Warden. QR codes are ready — view them in your dashboard.",
+        'success',
+        pass_id
+    )
+
     return jsonify({'message': 'Request approved. QR codes generated!'})
 
 
@@ -116,6 +125,14 @@ def reject_request(pass_id):
                warden_id = ?, warden_remarks = ?
            WHERE id = ?''',
         (request.user['user_id'], remarks, pass_id)
+    )
+
+    create_notification(
+        gate_pass['student_id'],
+        '❌ Warden Rejected Your Request',
+        f"Your gate pass #{pass_id} has been rejected by the Warden. Reason: {remarks}",
+        'error',
+        pass_id
     )
 
     return jsonify({'message': 'Request rejected'})

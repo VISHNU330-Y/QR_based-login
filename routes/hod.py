@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.database import query_db, execute_db
 from utils.jwt_utils import login_required
+from routes.notifications import create_notification, notify_role
 
 hod_bp = Blueprint('hod', __name__)
 
@@ -65,6 +66,21 @@ def approve_request(pass_id):
         (request.user['user_id'], remarks, pass_id)
     )
 
+    create_notification(
+        gate_pass['student_id'],
+        '✅ HOD Approved Your Request',
+        f"Your gate pass #{pass_id} to {gate_pass['destination']} has been approved by HOD. Awaiting Warden approval.",
+        'success',
+        pass_id
+    )
+    notify_role(
+        'warden',
+        '📥 New Request for Review',
+        f"Gate pass #{pass_id} (HOD-approved) is ready for your review.",
+        'info',
+        pass_id
+    )
+
     return jsonify({'message': 'Request approved successfully'})
 
 
@@ -94,6 +110,14 @@ def reject_request(pass_id):
                hod_id = ?, hod_remarks = ?
            WHERE id = ?''',
         (request.user['user_id'], remarks, pass_id)
+    )
+
+    create_notification(
+        gate_pass['student_id'],
+        '❌ HOD Rejected Your Request',
+        f"Your gate pass #{pass_id} has been rejected by HOD. Reason: {remarks}",
+        'error',
+        pass_id
     )
 
     return jsonify({'message': 'Request rejected'})

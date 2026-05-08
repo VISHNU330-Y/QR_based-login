@@ -105,6 +105,24 @@ function renderNavbar(user, roleLabelOverride) {
       </div>
 
       <div class="navbar-user">
+        <div class="notif-wrapper" id="notifWrapper">
+          <button class="notif-bell" id="notifBell" onclick="toggleNotifPanel()" title="Notifications">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+          </button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-header">
+              <span style="font-weight:700;font-size:0.9rem;">🔔 Notifications</span>
+              <button class="notif-mark-all" onclick="markAllNotifRead()">Mark all read</button>
+            </div>
+            <div class="notif-list" id="notifList">
+              <div style="text-align:center;padding:30px;color:var(--text-3);font-size:0.82rem;">No notifications</div>
+            </div>
+          </div>
+        </div>
         <div class="user-pill" onclick="openProfile()" id="userPill" title="Click to view profile" style="cursor:pointer;">
           <div class="user-avatar" style="background:${meta.grad};">${initials}</div>
           <div class="user-info">
@@ -378,3 +396,105 @@ function animateCounter(el, to, duration = 800) {
   }
   requestAnimationFrame(step);
 }
+
+// ══ Notification System ═══════════════════════════════════════════
+let _notifPanelOpen = false;
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (!panel) return;
+  _notifPanelOpen = !_notifPanelOpen;
+  panel.classList.toggle('open', _notifPanelOpen);
+  if (_notifPanelOpen) loadNotifications();
+}
+
+document.addEventListener('click', (e) => {
+  const wrapper = document.getElementById('notifWrapper');
+  if (wrapper && !wrapper.contains(e.target)) {
+    _notifPanelOpen = false;
+    const panel = document.getElementById('notifPanel');
+    if (panel) panel.classList.remove('open');
+  }
+});
+
+async function loadNotifications() {
+  try {
+    const data = await apiFetch('/api/notifications');
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+      if (data.unread_count > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    renderNotifications(data.notifications || []);
+  } catch (err) {}
+}
+
+function renderNotifications(notifs) {
+  const list = document.getElementById('notifList');
+  if (!list) return;
+  if (!notifs.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-3);font-size:0.82rem;">🔔 No notifications yet</div>';
+    return;
+  }
+  list.innerHTML = notifs.map(n => {
+    const typeIcon = { info:'📥', success:'✅', warning:'⚠️', error:'❌' };
+    const typeBg   = { info:'rgba(0,212,255,0.06)', success:'rgba(16,185,129,0.06)', warning:'rgba(245,158,11,0.06)', error:'rgba(239,68,68,0.06)' };
+    const typeBdr  = { info:'rgba(0,212,255,0.15)', success:'rgba(16,185,129,0.15)', warning:'rgba(245,158,11,0.15)', error:'rgba(239,68,68,0.15)' };
+    return `
+      <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="markNotifRead(${n.id}, this)"
+           style="border-left:3px solid ${typeBdr[n.type] || typeBdr.info};">
+        <div class="notif-item-icon" style="background:${typeBg[n.type] || typeBg.info};">${typeIcon[n.type] || '📥'}</div>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${n.title}</div>
+          <div class="notif-item-msg">${n.message}</div>
+          <div class="notif-item-time">${timeAgo(n.created_at)}</div>
+        </div>
+        ${!n.is_read ? '<div class="notif-dot"></div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+async function markNotifRead(id, el) {
+  try {
+    await apiFetch(`/api/notifications/read/${id}`, { method: 'POST' });
+    if (el) {
+      el.classList.remove('unread');
+      const dot = el.querySelector('.notif-dot');
+      if (dot) dot.remove();
+    }
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+      const cur = parseInt(badge.textContent) || 0;
+      if (cur <= 1) badge.style.display = 'none';
+      else badge.textContent = cur - 1;
+    }
+  } catch (err) {}
+}
+
+async function markAllNotifRead() {
+  try {
+    await apiFetch('/api/notifications/read-all', { method: 'POST' });
+    const badge = document.getElementById('notifBadge');
+    if (badge) badge.style.display = 'none';
+    document.querySelectorAll('.notif-item.unread').forEach(el => {
+      el.classList.remove('unread');
+      const dot = el.querySelector('.notif-dot');
+      if (dot) dot.remove();
+    });
+    showToast('All notifications marked as read', 'info');
+  } catch (err) {}
+}
+
+// Auto-poll notifications every 30 seconds
+setInterval(() => {
+  if (getToken()) {
+    loadNotifications();
+  }
+}, 30000);
+
+// Initial load on page ready
+if (getToken()) setTimeout(loadNotifications, 500);

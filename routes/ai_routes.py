@@ -95,16 +95,34 @@ def analyze_reason():
 
     # Build actionable suggestions
     suggestions = []
-    if result['level'] == 'high':
+    if result.get('safety_alert'):
+        suggestions.append('🚨 This request has been flagged for safety review.')
+        suggestions.append('⚠️ A staff member will be notified about this request.')
+        if result['safety_alert'].get('type') == 'self_harm':
+            suggestions.append('💙 If you are struggling, please reach out to the campus counselor or call a helpline.')
+    elif result['level'] == 'high':
         suggestions.append('📝 Add more specific details to your reason.')
         suggestions.append('📞 Mention parent/guardian contact.')
         if result['nlp']['high_risk_keywords']:
             suggestions.append('⚠️ Avoid vague or leisure-related terms in your reason.')
+        if result['nlp']['reason_category'] == 'insufficient':
+            suggestions.append('📝 Your reason is too vague. Provide clear details about where, why, and when.')
     elif result['level'] == 'medium':
         suggestions.append('ℹ️ Providing more context will help speed up approval.')
+        if result['nlp']['reason_category'] == 'leisure':
+            suggestions.append('💡 Leisure outings get extra scrutiny — add details about urgency if applicable.')
+
+    if result['level'] == 'critical':
+        prediction = 'Blocked — requires staff intervention'
+    elif result['score'] < 40:
+        prediction = 'Likely'
+    elif result['score'] < 60:
+        prediction = 'Moderate'
+    else:
+        prediction = 'Unlikely without strong justification'
 
     return jsonify({
         'ai': result,
         'suggestions': suggestions,
-        'approval_prediction': 'Likely' if result['score'] < 50 else 'Moderate' if result['score'] < 70 else 'Unlikely without strong justification'
+        'approval_prediction': prediction,
     })

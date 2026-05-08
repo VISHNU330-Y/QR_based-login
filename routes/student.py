@@ -2,6 +2,7 @@ from datetime import date as date_cls
 from flask import Blueprint, request, jsonify
 from models.database import query_db, execute_db
 from utils.jwt_utils import login_required
+from routes.notifications import notify_role
 
 student_bp = Blueprint('student', __name__)
 
@@ -59,6 +60,15 @@ def apply_gate_pass():
             data['student_phone'],
             data.get('parent_contact', student.get('parent_contact', ''))
         )
+    )
+
+    notify_role(
+        'hod',
+        '📥 New Gate Pass Request',
+        f"{student['name']} ({student['roll_no']}) requested an outing to {data['destination']} on {data['date']}.",
+        'info',
+        pass_id,
+        department=student.get('department')
     )
 
     return jsonify({

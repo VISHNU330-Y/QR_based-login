@@ -6,6 +6,7 @@ from routes.hod import hod_bp
 from routes.warden import warden_bp
 from routes.security import security_bp
 from routes.ai_routes import ai_bp
+from routes.notifications import notif_bp
 from seed_data import seed
 import config
 
@@ -19,6 +20,7 @@ app.register_blueprint(hod_bp)
 app.register_blueprint(warden_bp)
 app.register_blueprint(security_bp)
 app.register_blueprint(ai_bp)          # ← AI Intelligence Engine
+app.register_blueprint(notif_bp)       # ← Notifications
 
 
 # ── Serve HTML pages ───────────────────────────────────────────
