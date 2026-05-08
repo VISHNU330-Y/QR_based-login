@@ -35,8 +35,9 @@ function requireAuth(requiredRole) {
 // ── API fetch wrapper ─────────────────────────────────────────
 async function apiFetch(endpoint, options = {}) {
   const token = getToken();
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
@@ -124,7 +125,11 @@ function renderNavbar(user, roleLabelOverride) {
           </div>
         </div>
         <div class="user-pill" onclick="openProfile()" id="userPill" title="Click to view profile" style="cursor:pointer;">
-          <div class="user-avatar" style="background:${meta.grad};">${initials}</div>
+          <div class="user-avatar" style="background:${user.photo_url ? 'none' : meta.grad};overflow:hidden;">
+            ${user.photo_url
+              ? `<img src="${user.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">`
+              : initials}
+          </div>
           <div class="user-info">
             <div class="name">${user.name}</div>
             <div class="role">${roleLabel}${dept}</div>
@@ -189,14 +194,26 @@ async function openProfile() {
     content.innerHTML = `
       <!-- ── Avatar Hero ── -->
       <div style="text-align:center;padding:8px 0 24px;border-bottom:1px solid var(--border);margin-bottom:20px;">
-        <div style="position:relative;display:inline-block;margin-bottom:14px;">
-          <div style="width:96px;height:96px;border-radius:50%;background:${meta.grad};
+        <div class="profile-avatar-wrap" style="position:relative;display:inline-block;margin-bottom:14px;">
+          <div id="profileAvatarCircle" style="width:96px;height:96px;border-radius:50%;
+               background:${u.photo_url ? 'none' : meta.grad};overflow:hidden;
                display:flex;align-items:center;justify-content:center;
                font-size:2.4rem;font-weight:800;color:#fff;
                box-shadow:0 0 0 4px rgba(0,212,255,0.15), 0 8px 24px rgba(0,0,0,0.4);
                border:3px solid rgba(255,255,255,0.08);">
-            ${initials}
+            ${u.photo_url
+              ? `<img src="${u.photo_url}" style="width:100%;height:100%;object-fit:cover;" alt="">`
+              : initials}
           </div>
+          <label for="profilePhotoInput" style="position:absolute;inset:0;border-radius:50%;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center;
+                 background:rgba(0,0,0,0.55);opacity:0;transition:opacity 0.25s;"
+                 onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'"
+                 title="Change photo">
+            <span style="font-size:1.5rem;">📷</span>
+          </label>
+          <input type="file" id="profilePhotoInput" accept="image/*"
+                 style="display:none;" onchange="handleProfilePhotoUpload(this)">
           <div style="position:absolute;bottom:2px;right:2px;width:18px;height:18px;
                background:#10b981;border-radius:50%;border:2px solid var(--bg-surface);"
                title="Active"></div>
@@ -207,6 +224,11 @@ async function openProfile() {
               background:${rc.bg};color:${rc.color};border:1px solid ${rc.border};">
           ${meta.icon} ${meta.label}
         </span>
+        ${u.photo_url ? `<div style="margin-top:10px;">
+          <button class="btn btn-ghost btn-sm" onclick="removeProfilePhoto()" style="font-size:0.72rem;padding:4px 12px;">
+            🗑 Remove Photo
+          </button>
+        </div>` : `<div style="margin-top:8px;font-size:0.68rem;color:var(--text-3);">Click avatar to upload photo</div>`}
       </div>
 
       <!-- ── Info Fields ── -->
@@ -498,3 +520,66 @@ setInterval(() => {
 
 // Initial load on page ready
 if (getToken()) setTimeout(loadNotifications, 500);
+
+// ══ Profile Photo Upload ══════════════════════════════════════════
+function _refreshNavAvatar(user) {
+  const el = document.querySelector('#userPill .user-avatar');
+  if (!el) return;
+  const meta = ROLE_META[user.role] || { grad: 'var(--grad-brand)' };
+  const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2) : '??';
+  el.style.background = user.photo_url ? 'none' : meta.grad;
+  el.style.overflow = 'hidden';
+  el.innerHTML = user.photo_url
+    ? `<img src="${user.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">`
+    : initials;
+}
+
+async function handleProfilePhotoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const maxSize = 2 * 1024 * 1024;
+  if (file.size > maxSize) {
+    showToast('File too large. Maximum size is 2 MB', 'error');
+    input.value = '';
+    return;
+  }
+
+  const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+  if (!allowed.includes(file.type)) {
+    showToast('Only PNG, JPG, GIF, or WebP allowed', 'error');
+    input.value = '';
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('photo', file);
+
+  try {
+    showToast('Uploading photo…', 'info');
+    const data = await apiFetch('/api/profile/photo', { method: 'POST', body: fd });
+    if (data && data.user) {
+      const cur = getUser();
+      const updated = { ...cur, photo_url: data.user.photo_url };
+      localStorage.setItem('gatepass_user', JSON.stringify(updated));
+      _refreshNavAvatar(updated);
+      showToast('Profile photo updated!', 'success');
+      openProfile();
+    }
+  } catch (err) {}
+  input.value = '';
+}
+
+async function removeProfilePhoto() {
+  if (!confirm('Remove your profile photo?')) return;
+  try {
+    await apiFetch('/api/profile/photo', { method: 'DELETE' });
+    const cur = getUser();
+    const updated = { ...cur, photo_url: null };
+    localStorage.setItem('gatepass_user', JSON.stringify(updated));
+    _refreshNavAvatar(updated);
+    showToast('Photo removed', 'info');
+    openProfile();
+  } catch (err) {}
+}
+
