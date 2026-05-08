@@ -1,171 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warden Dashboard — Gate Pass System</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warden Dashboard — GatePass Pro</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-    <div class="app-container" id="app">
-        <div id="navbar"></div>
+<div class="app-container" id="app">
+  <div id="navbar"></div>
 
-        <!-- Stats -->
-        <div class="stats-grid">
-            <div class="stat-card cyan" style="animation-delay:0.1s">
-                <div class="stat-value" id="statPending">0</div>
-                <div class="stat-label">Pending Review</div>
-            </div>
-            <div class="stat-card green" style="animation-delay:0.2s">
-                <div class="stat-value" id="statApproved">0</div>
-                <div class="stat-label">Approved Today</div>
-            </div>
-            <div class="stat-card amber" style="animation-delay:0.3s">
-                <div class="stat-value" id="statActive">0</div>
-                <div class="stat-label">Active Passes</div>
-            </div>
-        </div>
-
-        <!-- Filter -->
-        <div class="filter-tabs">
-            <button class="filter-tab active" onclick="loadRequests('all', this)">All</button>
-            <button class="filter-tab" onclick="loadRequests('pending', this)">⏳ Pending</button>
-            <button class="filter-tab" onclick="loadRequests('approved', this)">✅ Approved</button>
-            <button class="filter-tab" onclick="loadRequests('rejected', this)">❌ Rejected</button>
-        </div>
-
-        <!-- Requests List -->
-        <div class="request-list" id="requestsList"></div>
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card cyan" style="animation-delay:0.1s;">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-value" id="statPending">—</div>
+      <div class="stat-label">Pending Review</div>
+      <div class="stat-trend" style="color:var(--amber);">🔔 HOD-approved, awaiting you</div>
     </div>
+    <div class="stat-card green" style="animation-delay:0.2s;">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value" id="statApproved">—</div>
+      <div class="stat-label">Approved Today</div>
+      <div class="stat-trend" style="color:var(--green);">📅 Today's approvals</div>
+    </div>
+    <div class="stat-card amber" style="animation-delay:0.3s;">
+      <div class="stat-icon">🚪</div>
+      <div class="stat-value" id="statActive">—</div>
+      <div class="stat-label">Currently Outside</div>
+      <div class="stat-trend" style="color:var(--amber);">🔄 Active passes</div>
+    </div>
+  </div>
 
-    <script src="/static/js/app.js"></script>
-    <script>
-        const user = requireAuth('warden');
-        if (user) init();
+  <!-- Filter -->
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="loadRequests('all',this)">🗂 All</button>
+    <button class="filter-tab" onclick="loadRequests('pending',this)">⏳ Pending</button>
+    <button class="filter-tab" onclick="loadRequests('approved',this)">✅ Approved</button>
+    <button class="filter-tab" onclick="loadRequests('rejected',this)">❌ Rejected</button>
+  </div>
 
-        async function init() {
-            document.getElementById('navbar').innerHTML = renderNavbar(user, '🧑‍💼 Hostel Warden');
-            loadStats();
-            loadRequests('all');
-        }
+  <div class="request-list" id="requestsList">
+    <div style="text-align:center;padding:40px;"><div class="spinner"></div></div>
+  </div>
+</div>
 
-        async function loadStats() {
-            try {
-                const data = await apiFetch('/api/warden/stats');
-                document.getElementById('statPending').textContent = data.pending;
-                document.getElementById('statApproved').textContent = data.approved_today;
-                document.getElementById('statActive').textContent = data.active_passes;
-            } catch (err) {}
-        }
+<script src="/static/js/app.js"></script>
+<script>
+  const user = requireAuth('warden');
+  if (user) init();
 
-        async function loadRequests(status, btn) {
-            if (btn) {
-                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-                btn.classList.add('active');
-            }
+  async function init() {
+    document.getElementById('navbar').innerHTML = renderNavbar(user);
+    loadStats();
+    loadRequests('all');
+    setInterval(loadStats, 30000);
+  }
 
-            const list = document.getElementById('requestsList');
-            list.innerHTML = '<div class="spinner"></div>';
+  async function loadStats() {
+    try {
+      const data = await apiFetch('/api/warden/stats');
+      animateCounter(document.getElementById('statPending'), data.pending);
+      animateCounter(document.getElementById('statApproved'), data.approved_today);
+      animateCounter(document.getElementById('statActive'), data.active_passes);
+    } catch (err) {}
+  }
 
-            try {
-                const data = await apiFetch(`/api/warden/requests?status=${status}`);
-                const requests = data.requests || [];
+  async function loadRequests(status, btn) {
+    if (btn) {
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    const list = document.getElementById('requestsList');
+    list.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
+    try {
+      const data = await apiFetch(`/api/warden/requests?status=${status}`);
+      const requests = data.requests || [];
+      if (!requests.length) {
+        list.innerHTML = `<div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3>No requests</h3>
+          <p>Only HOD-approved requests appear here for your review</p>
+        </div>`;
+        return;
+      }
+      list.innerHTML = requests.map((r,i) => {
+        const initials = r.student_name ? r.student_name.split(' ').map(n=>n[0]).join('') : '?';
+        return `
+        <div class="request-card" style="animation-delay:${i*0.07}s;">
+          <div class="request-card-header">
+            <div class="request-student">
+              <div class="request-student-avatar" style="background:var(--grad-teal);">${initials}</div>
+              <div class="request-student-info">
+                <div class="student-name">${r.student_name}</div>
+                <div class="student-meta">
+                  <span>🎓 ${r.roll_no}</span>
+                  <span>🏫 ${r.department}</span>
+                  <span>📚 Year ${r.year || '—'}</span>
+                  <span>🏠 ${r.hostel_block || '—'}</span>
+                </div>
+              </div>
+            </div>
+            ${getStatusBadge(r.warden_status)}
+          </div>
+          ${renderPipeline(r.pass_status)}
+          <div class="request-details">
+            <div class="request-detail">
+              <span class="detail-label">📅 Date</span>
+              <span class="detail-value">${formatDate(r.date)}</span>
+            </div>
+            <div class="request-detail">
+              <span class="detail-label">🕐 Exit</span>
+              <span class="detail-value">${formatTime(r.exit_time)}</span>
+            </div>
+            <div class="request-detail">
+              <span class="detail-label">🕔 Return</span>
+              <span class="detail-value">${r.return_date && r.return_date !== r.date ? formatDate(r.return_date) + ' ' : ''}${formatTime(r.return_time)}</span>
+            </div>
+            <div class="request-detail">
+              <span class="detail-label">📍 Destination</span>
+              <span class="detail-value">${r.destination}</span>
+            </div>
+            <div class="request-detail">
+              <span class="detail-label">📱 Phone</span>
+              <span class="detail-value">${r.student_phone || '—'}</span>
+            </div>
+            <div class="request-detail" style="grid-column:1/-1;">
+              <span class="detail-label">📄 Reason</span>
+              <span class="detail-value">${r.reason}</span>
+            </div>
+            ${r.hod_remarks ? `
+            <div class="request-detail" style="grid-column:1/-1;">
+              <span class="detail-label">💬 HOD Remarks</span>
+              <span class="detail-value" style="color:var(--cyan);">${r.hod_remarks}</span>
+            </div>` : ''}
+          </div>
+          ${r.warden_status === 'pending' ? `
+          <div class="request-actions">
+            <input class="remarks-input" id="remarks-${r.id}" placeholder="Add warden remarks (optional)">
+            <button class="btn btn-success btn-sm" onclick="approveRequest(${r.id})">✅ Approve & Generate QR</button>
+            <button class="btn btn-danger  btn-sm" onclick="rejectRequest(${r.id})">❌ Reject</button>
+          </div>` : r.warden_remarks ? `
+          <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:var(--r-xs);border-left:3px solid var(--border);font-size:0.82rem;color:var(--text-2);">
+            <strong>Your Remarks:</strong> ${r.warden_remarks}
+          </div>` : ''}
+        </div>`;
+      }).join('');
+    } catch (err) {
+      list.innerHTML = '<div class="empty-state"><h3>⚠ Failed to load</h3></div>';
+    }
+  }
 
-                if (requests.length === 0) {
-                    list.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">📋</div>
-                            <h3>No requests found</h3>
-                            <p>Only HOD-approved requests appear here</p>
-                        </div>`;
-                    return;
-                }
+  async function approveRequest(passId) {
+    const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
+    try {
+      await apiFetch(`/api/warden/approve/${passId}`, { method:'POST', body: JSON.stringify({ remarks }) });
+      showToast('✅ Approved! QR codes generated and sent to student.', 'success');
+      loadRequests('all'); loadStats();
+    } catch (err) {}
+  }
 
-                list.innerHTML = requests.map((r, i) => {
-                    const initials = r.student_name ? r.student_name.split(' ').map(n => n[0]).join('') : '?';
-                    return `
-                    <div class="request-card" style="animation-delay:${i * 0.08}s">
-                        <div class="request-card-header">
-                            <div class="request-student">
-                                <div class="request-student-avatar">${initials}</div>
-                                <div class="request-student-info">
-                                    <div class="student-name">${r.student_name}</div>
-                                    <div class="student-meta">${r.roll_no} • ${r.department} • Year ${r.year || '-'} • ${r.hostel_block || '-'}</div>
-                                </div>
-                            </div>
-                            ${getStatusBadge(r.warden_status)}
-                        </div>
-                        ${renderPipeline(r.pass_status)}
-                        <div class="request-details">
-                            <div class="request-detail">
-                                <span class="detail-label">📅 Date</span>
-                                <span class="detail-value">${formatDate(r.date)}</span>
-                            </div>
-                            <div class="request-detail">
-                                <span class="detail-label">⏰ Exit</span>
-                                <span class="detail-value">${formatTime(r.exit_time)}</span>
-                            </div>
-                            <div class="request-detail">
-                                <span class="detail-label">⏳ Return</span>
-                                <span class="detail-value">${formatTime(r.return_time)}</span>
-                            </div>
-                            <div class="request-detail">
-                                <span class="detail-label">📍 Destination</span>
-                                <span class="detail-value">${r.destination}</span>
-                            </div>
-                            <div class="request-detail" style="grid-column: span 2">
-                                <span class="detail-label">📄 Reason</span>
-                                <span class="detail-value">${r.reason}</span>
-                            </div>
-                            ${r.hod_remarks ? `
-                            <div class="request-detail" style="grid-column: span 2">
-                                <span class="detail-label">🗒️ HOD Remarks</span>
-                                <span class="detail-value">${r.hod_remarks}</span>
-                            </div>` : ''}
-                        </div>
-                        ${r.warden_status === 'pending' ? `
-                        <div class="request-actions">
-                            <input class="remarks-input" id="remarks-${r.id}" placeholder="Add remarks (optional)">
-                            <button class="btn btn-success btn-sm" onclick="approveRequest(${r.id})">✅ Approve & Generate QR</button>
-                            <button class="btn btn-danger btn-sm" onclick="rejectRequest(${r.id})">❌ Reject</button>
-                        </div>` : `
-                        ${r.warden_remarks ? `<div style="margin-top:12px;font-size:0.85rem;color:var(--text-secondary)">
-                            <strong>Warden Remarks:</strong> ${r.warden_remarks}</div>` : ''}
-                        `}
-                    </div>`;
-                }).join('');
-
-            } catch (err) {
-                list.innerHTML = '<div class="empty-state"><h3>Failed to load</h3></div>';
-            }
-        }
-
-        async function approveRequest(passId) {
-            const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
-            try {
-                await apiFetch(`/api/warden/approve/${passId}`, {
-                    method: 'POST',
-                    body: JSON.stringify({ remarks })
-                });
-                showToast('Approved! QR codes generated.', 'success');
-                loadRequests('all');
-                loadStats();
-            } catch (err) {}
-        }
-
-        async function rejectRequest(passId) {
-            const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
-            if (!confirm('Reject this request?')) return;
-            try {
-                await apiFetch(`/api/warden/reject/${passId}`, {
-                    method: 'POST',
-                    body: JSON.stringify({ remarks: remarks || 'Rejected by Warden' })
-                });
-                showToast('Request rejected', 'info');
-                loadRequests('all');
-                loadStats();
-            } catch (err) {}
-        }
-    </script>
+  async function rejectRequest(passId) {
+    if (!confirm('Reject this gate pass request?')) return;
+    const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
+    try {
+      await apiFetch(`/api/warden/reject/${passId}`, { method:'POST', body: JSON.stringify({ remarks: remarks || 'Rejected by Warden' }) });
+      showToast('Request rejected.', 'info');
+      loadRequests('all'); loadStats();
+    } catch (err) {}
+  }
+</script>
 </body>
 </html>

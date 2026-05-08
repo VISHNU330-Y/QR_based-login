@@ -1,322 +1,359 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Gate — Gate Pass System</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Gate — GatePass Pro</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    .verify-result {
+      border-radius: var(--r-lg);
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 16px;
+      border: 2px solid;
+      animation: fadeInUp 0.4s ease;
+    }
+    .verify-result.valid {
+      background: rgba(16,185,129,0.06);
+      border-color: rgba(16,185,129,0.3);
+    }
+    .verify-result.invalid {
+      background: rgba(239,68,68,0.06);
+      border-color: rgba(239,68,68,0.3);
+    }
+    .verify-status-icon {
+      font-size: 3rem;
+      margin-bottom: 8px;
+    }
+    .scan-ring {
+      width: 280px; height: 280px;
+      border: 3px solid var(--border);
+      border-radius: var(--r-lg);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+      margin: 0 auto 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .scan-ring.scanning {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 4px rgba(0,212,255,0.1);
+      animation: scanPulse 2s ease-in-out infinite;
+    }
+    .scan-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      animation: scanLine 2s linear infinite;
+      display: none;
+    }
+    .scan-ring.scanning .scan-line { display: block; }
+    @keyframes scanLine {
+      0%  { top: 0; }
+      100%{ top: 100%; }
+    }
+    #reader { width: 100%; max-width: 260px; border-radius: var(--r-md); overflow: hidden; }
+  </style>
 </head>
 <body>
-    <div class="app-container" id="app">
-        <div id="navbar"></div>
+<div class="app-container" id="app">
+  <div id="navbar"></div>
 
-        <div class="scanner-section">
-            <!-- Left: Scanner -->
-            <div>
-                <div class="scanner-area card" style="animation-delay:0.1s">
-                    <h2 style="margin-bottom:16px">📷 QR Code Scanner</h2>
-                    <div id="reader"></div>
-                    <div id="scannerStatus" style="margin-top:12px;font-size:0.9rem;color:var(--text-secondary)">
-                        Click "Start Camera" to begin scanning
-                    </div>
-                    <div style="display:flex;gap:8px;margin-top:16px">
-                        <button class="btn btn-primary btn-sm" id="startScanBtn" onclick="startScanner()">📷 Start Camera</button>
-                        <button class="btn btn-ghost btn-sm" id="stopScanBtn" onclick="stopScanner()" style="display:none">⏹ Stop</button>
-                    </div>
+  <!-- Stats bar -->
+  <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px;">
+    <div class="stat-card green" style="animation-delay:0.1s;padding:16px;">
+      <div class="stat-icon">🚪</div>
+      <div class="stat-value" id="statExits" style="font-size:2rem;">—</div>
+      <div class="stat-label">Exits Today</div>
+    </div>
+    <div class="stat-card cyan" style="animation-delay:0.2s;padding:16px;">
+      <div class="stat-icon">🏠</div>
+      <div class="stat-value" id="statEntries" style="font-size:2rem;">—</div>
+      <div class="stat-label">Returns Today</div>
+    </div>
+    <div class="stat-card amber" style="animation-delay:0.3s;padding:16px;">
+      <div class="stat-icon">🔄</div>
+      <div class="stat-value" id="statOutside" style="font-size:2rem;">—</div>
+      <div class="stat-label">Currently Outside</div>
+    </div>
+  </div>
 
-                    <!-- Manual QR input fallback -->
-                    <div class="manual-qr-section">
-                        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px">
-                            Or paste QR data manually:
-                        </p>
-                        <textarea id="manualQrInput" placeholder='Paste QR code data here...'></textarea>
-                        <button class="btn btn-primary btn-sm" onclick="verifyManualQR()">🔍 Verify</button>
-                    </div>
-                </div>
-
-                <!-- Activity Log -->
-                <div class="card" style="margin-top:16px;animation-delay:0.3s">
-                    <div class="card-header">
-                        <h2>📋 Recent Activity</h2>
-                        <button class="btn btn-ghost btn-sm" onclick="loadLogs()">🔄 Refresh</button>
-                    </div>
-                    <div class="activity-log" id="activityLog">
-                        <div class="empty-state" style="padding:30px 10px">
-                            <div class="empty-icon">📋</div>
-                            <p>No activity yet</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right: Student Details -->
-            <div class="student-details-panel card" id="detailsPanel" style="animation-delay:0.2s">
-                <div id="detailsContent">
-                    <div class="empty-state">
-                        <div class="empty-icon">🔍</div>
-                        <h3>Scan a QR Code</h3>
-                        <p>Student details will appear here after scanning</p>
-                    </div>
-                </div>
-            </div>
+  <div class="scanner-section">
+    <!-- Left: Scanner + Logs -->
+    <div>
+      <div class="card" style="animation-delay:0.1s;">
+        <div class="card-header">
+          <h2><div class="card-header-icon">📷</div>QR Scanner</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" id="startScanBtn" onclick="startScanner()">📷 Start Camera</button>
+            <button class="btn btn-ghost   btn-sm" id="stopScanBtn"  onclick="stopScanner()" style="display:none;">⏹ Stop</button>
+          </div>
         </div>
+
+        <div class="scan-ring" id="scanRing">
+          <div class="scan-line"></div>
+          <div id="reader"></div>
+          <div id="scanHint" style="color:var(--text-3);font-size:0.8rem;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:8px;opacity:0.4;">📷</div>
+            Click "Start Camera" to begin scanning
+          </div>
+        </div>
+
+        <div id="scannerStatus" style="text-align:center;font-size:0.82rem;color:var(--text-2);margin-bottom:12px;"></div>
+
+        <!-- Manual fallback -->
+        <div class="manual-qr-section">
+          <label style="font-size:0.72rem;color:var(--text-3);text-transform:uppercase;letter-spacing:1px;">🔠 Or paste QR token manually:</label>
+          <textarea id="manualQrInput" placeholder="Paste QR code data here..."></textarea>
+          <button class="btn btn-primary btn-sm" onclick="verifyManualQR()">🔍 Verify Token</button>
+        </div>
+      </div>
+
+      <!-- Activity Log -->
+      <div class="card" style="margin-top:16px;animation-delay:0.3s;">
+        <div class="card-header">
+          <h2><div class="card-header-icon">📋</div>Today's Activity</h2>
+          <button class="btn btn-ghost btn-sm" onclick="loadLogs()">🔄 Refresh</button>
+        </div>
+        <div class="activity-log" id="activityLog">
+          <div class="empty-state" style="padding:24px 10px;">
+            <div class="empty-icon" style="font-size:2rem;">📋</div>
+            <p>No activity recorded yet</p>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <script src="/static/js/app.js"></script>
-    <script>
-        const user = requireAuth('security');
-        if (user) init();
+    <!-- Right: Student Details -->
+    <div class="card student-details-panel" id="detailsPanel" style="animation-delay:0.2s;">
+      <div id="detailsContent">
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <h3>Awaiting Scan</h3>
+          <p>Student details will appear here after scanning a valid QR code</p>
+          <div style="margin-top:24px;padding:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);text-align:left;font-size:0.8rem;color:var(--text-2);">
+            <div style="font-weight:600;margin-bottom:10px;color:var(--text-1);">📌 Instructions:</div>
+            <ol style="padding-left:16px;line-height:2;">
+              <li>Click <strong>Start Camera</strong> to activate scanner</li>
+              <li>Hold the student's QR code in view</li>
+              <li>Verify the details shown</li>
+              <li>Click <strong>Allow Exit</strong> or <strong>Allow Entry</strong></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-        let html5Qr = null;
-        let currentPassId = null;
-        let currentQrType = null;
+<script src="/static/js/app.js"></script>
+<script>
+  const user = requireAuth('security');
+  if (user) init();
 
-        function init() {
-            document.getElementById('navbar').innerHTML = renderNavbar(user, '🛡️ Security Guard');
-            loadLogs();
-        }
+  let html5Qr = null;
+  let currentPassId = null;
+  let currentQrType = null;
 
-        // ── Camera Scanner ──
-        function startScanner() {
-            document.getElementById('scannerStatus').textContent = 'Starting camera...';
-            document.getElementById('startScanBtn').style.display = 'none';
-            document.getElementById('stopScanBtn').style.display = 'inline-flex';
+  function init() {
+    document.getElementById('navbar').innerHTML = renderNavbar(user);
+    loadLogs();
+    loadStats();
+    setInterval(loadStats, 20000);
+  }
 
-            html5Qr = new Html5Qrcode("reader");
-            html5Qr.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                onScanSuccess,
-                () => {}
-            ).then(() => {
-                document.getElementById('scannerStatus').textContent = '📷 Camera active — Hold QR code in view';
-            }).catch(err => {
-                document.getElementById('scannerStatus').textContent = '❌ Camera not available. Use manual input below.';
-                document.getElementById('startScanBtn').style.display = 'inline-flex';
-                document.getElementById('stopScanBtn').style.display = 'none';
-            });
-        }
+  async function loadStats() {
+    try {
+      const data = await apiFetch('/api/security/logs');
+      const logs = data.logs || [];
+      const exits   = logs.filter(l => l.action_type === 'exit').length;
+      const entries = logs.filter(l => l.action_type === 'entry').length;
+      animateCounter(document.getElementById('statExits'),   exits);
+      animateCounter(document.getElementById('statEntries'), entries);
+      animateCounter(document.getElementById('statOutside'), Math.max(0, exits - entries));
+    } catch(err) {}
+  }
 
-        function stopScanner() {
-            if (html5Qr) {
-                html5Qr.stop().then(() => {
-                    html5Qr.clear();
-                    document.getElementById('scannerStatus').textContent = 'Scanner stopped';
-                    document.getElementById('startScanBtn').style.display = 'inline-flex';
-                    document.getElementById('stopScanBtn').style.display = 'none';
-                }).catch(() => {});
-            }
-        }
+  function startScanner() {
+    document.getElementById('startScanBtn').style.display = 'none';
+    document.getElementById('stopScanBtn').style.display  = 'inline-flex';
+    document.getElementById('scanHint').style.display     = 'none';
+    document.getElementById('scannerStatus').textContent  = '📷 Camera starting...';
+    document.getElementById('scanRing').classList.add('scanning');
 
-        async function onScanSuccess(decodedText) {
-            // Pause scanning after successful read
-            if (html5Qr) {
-                try { await html5Qr.stop(); } catch(e) {}
-                document.getElementById('startScanBtn').style.display = 'inline-flex';
-                document.getElementById('stopScanBtn').style.display = 'none';
-            }
-            document.getElementById('scannerStatus').textContent = '✅ QR scanned! Verifying...';
-            verifyQR(decodedText);
-        }
+    html5Qr = new Html5Qrcode("reader");
+    html5Qr.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 230, height: 230 } },
+      onScanSuccess, () => {}
+    ).then(() => {
+      document.getElementById('scannerStatus').textContent = '📷 Camera active — Hold QR code in frame';
+    }).catch(err => {
+      document.getElementById('scannerStatus').textContent = '❌ Camera unavailable. Use manual input below.';
+      showToast('Camera not accessible. Use manual QR input.', 'warning');
+      document.getElementById('startScanBtn').style.display = 'inline-flex';
+      document.getElementById('stopScanBtn').style.display  = 'none';
+      document.getElementById('scanRing').classList.remove('scanning');
+      document.getElementById('scanHint').style.display = 'block';
+    });
+  }
 
-        function verifyManualQR() {
-            const data = document.getElementById('manualQrInput').value.trim();
-            if (!data) {
-                showToast('Please paste QR data', 'error');
-                return;
-            }
-            verifyQR(data);
-        }
+  function stopScanner() {
+    if (html5Qr) {
+      html5Qr.stop().then(() => {
+        html5Qr.clear();
+        document.getElementById('scannerStatus').textContent = 'Scanner stopped.';
+        document.getElementById('startScanBtn').style.display = 'inline-flex';
+        document.getElementById('stopScanBtn').style.display  = 'none';
+        document.getElementById('scanRing').classList.remove('scanning');
+        document.getElementById('scanHint').style.display = 'block';
+      }).catch(() => {});
+    }
+  }
 
-        // ── Verify QR ──
-        async function verifyQR(qrData) {
-            const panel = document.getElementById('detailsContent');
-            panel.innerHTML = '<div class="spinner"></div>';
+  async function onScanSuccess(decodedText) {
+    if (html5Qr) {
+      try { await html5Qr.stop(); } catch(e) {}
+      document.getElementById('startScanBtn').style.display = 'inline-flex';
+      document.getElementById('stopScanBtn').style.display  = 'none';
+      document.getElementById('scanRing').classList.remove('scanning');
+    }
+    document.getElementById('scannerStatus').textContent = '✅ QR scanned — Verifying...';
+    verifyQR(decodedText);
+  }
 
-            try {
-                const data = await apiFetch('/api/security/verify', {
-                    method: 'POST',
-                    body: JSON.stringify({ qr_data: qrData })
-                });
+  function verifyManualQR() {
+    const data = document.getElementById('manualQrInput').value.trim();
+    if (!data) { showToast('Please paste QR data first', 'error'); return; }
+    verifyQR(data);
+  }
 
-                currentPassId = data.gate_pass.id;
-                currentQrType = data.qr_type;
+  async function verifyQR(qrData) {
+    const panel = document.getElementById('detailsContent');
+    panel.innerHTML = '<div class="spinner" style="margin:60px auto;"></div>';
+    try {
+      const data = await apiFetch('/api/security/verify', {
+        method: 'POST',
+        body: JSON.stringify({ qr_data: qrData })
+      });
+      currentPassId = data.gate_pass.id;
+      currentQrType = data.qr_type;
+      const s = data.student, gp = data.gate_pass, isValid = data.valid;
+      const initials = s.name ? s.name.split(' ').map(n=>n[0]).join('') : '?';
+      const typeColor = data.qr_type === 'exit' ? 'var(--green)' : 'var(--blue)';
+      const typeLabel = data.qr_type === 'exit' ? '🟢 Exit Pass' : '🔵 Entry Pass';
 
-                const s = data.student;
-                const gp = data.gate_pass;
-                const initials = s.name ? s.name.split(' ').map(n => n[0]).join('') : '?';
-                const isValid = data.valid;
+      panel.innerHTML = `
+        <div class="verify-result ${isValid ? 'valid' : 'invalid'}">
+          <div class="verify-status-icon">${isValid ? '✅' : '❌'}</div>
+          <div style="font-size:1.1rem;font-weight:700;margin-bottom:4px;">${data.status_message}</div>
+          <span class="badge" style="background:rgba(255,255,255,0.05);border:1px solid ${typeColor};color:${typeColor};">${typeLabel}</span>
+        </div>
 
-                panel.innerHTML = `
-                    <div style="text-align:center">
-                        <div class="student-photo-large">${initials}</div>
-                        <h2 style="margin-bottom:4px">${s.name}</h2>
-                        <p style="color:var(--text-secondary)">${s.roll_no} • ${s.department}</p>
-                        <div style="margin:12px 0">
-                            ${isValid ?
-                                `<span class="badge badge-approved" style="font-size:0.9rem;padding:8px 16px">✅ ${data.status_message}</span>` :
-                                `<span class="badge badge-rejected" style="font-size:0.9rem;padding:8px 16px">❌ ${data.status_message}</span>`
-                            }
-                        </div>
-                        <div style="margin:8px 0">
-                            <span class="badge ${data.qr_type === 'exit' ? 'badge-approved' : 'badge-active'}">
-                                ${data.qr_type === 'exit' ? '🟢 Exit QR' : '🔵 Entry QR'}
-                            </span>
-                        </div>
-                    </div>
+        <div style="text-align:center;margin-bottom:16px;">
+          <div class="student-photo-large">${initials}</div>
+          <h2 style="margin-bottom:4px;">${s.name}</h2>
+          <p style="color:var(--text-2);font-size:0.875rem;">${s.roll_no} · ${s.department}</p>
+        </div>
 
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="label">📅 Date</span>
-                            <span class="value">${formatDate(gp.date)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">⏰ Exit Time</span>
-                            <span class="value">${formatTime(gp.exit_time)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">⏳ Return Time</span>
-                            <span class="value">${formatTime(gp.return_time)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">📍 Destination</span>
-                            <span class="value">${gp.destination}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">🏫 Year</span>
-                            <span class="value">${s.year || '-'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">🏠 Hostel</span>
-                            <span class="value">${s.hostel_block || '-'}</span>
-                        </div>
-                        <div class="detail-item" style="grid-column: span 2">
-                            <span class="label">📌 Pass Status</span>
-                            <span class="value">${getStatusBadge(gp.pass_status)}</span>
-                        </div>
-                    </div>
+        <div class="detail-grid">
+          <div class="detail-item"><span class="label">📅 Date</span><span class="value">${formatDate(gp.date)}</span></div>
+          <div class="detail-item"><span class="label">🕐 Exit Time</span><span class="value">${formatTime(gp.exit_time)}</span></div>
+          <div class="detail-item"><span class="label">🕔 Return</span><span class="value">${formatTime(gp.return_time)}</span></div>
+          <div class="detail-item"><span class="label">📍 Destination</span><span class="value">${gp.destination}</span></div>
+          <div class="detail-item"><span class="label">📚 Year</span><span class="value">${s.year || '—'}</span></div>
+          <div class="detail-item"><span class="label">🏠 Hostel</span><span class="value">${s.hostel_block || '—'}</span></div>
+          <div class="detail-item" style="grid-column:1/-1;"><span class="label">📌 Pass Status</span><span class="value">${getStatusBadge(gp.pass_status)}</span></div>
+        </div>
 
-                    ${isValid ? `
-                    <div style="margin-top:20px;text-align:center">
-                        ${data.qr_type === 'exit' ?
-                            `<button class="btn btn-success btn-lg" style="width:100%" onclick="allowExit()">
-                                🚪 Allow Exit
-                            </button>` :
-                            `<button class="btn btn-primary btn-lg" style="width:100%" onclick="allowEntry()">
-                                🏠 Allow Entry
-                            </button>`
-                        }
-                    </div>` : `
-                    <div style="margin-top:20px;text-align:center">
-                        <button class="btn btn-ghost btn-lg" style="width:100%" onclick="resetScanner()">
-                            🔄 Scan Another
-                        </button>
-                    </div>`
-                    }
-                `;
+        <div style="margin-top:20px;">
+          ${isValid
+            ? data.qr_type === 'exit'
+              ? `<button class="btn btn-success btn-xl w-full" onclick="allowExit()">🚪 Allow Exit</button>`
+              : `<button class="btn btn-primary btn-xl w-full" onclick="allowEntry()">🏠 Allow Entry</button>`
+            : `<button class="btn btn-ghost btn-lg w-full" onclick="resetScanner()">🔄 Scan Another QR</button>`
+          }
+        </div>`;
+    } catch (err) {
+      panel.innerHTML = `
+        <div class="verify-result invalid">
+          <div class="verify-status-icon">❌</div>
+          <div style="font-size:1rem;font-weight:700;">Verification Failed</div>
+          <p style="font-size:0.82rem;color:var(--text-2);margin-top:8px;">${err.message || 'Invalid or expired QR code'}</p>
+        </div>
+        <button class="btn btn-ghost btn-lg w-full mt-md" onclick="resetScanner()">🔄 Try Again</button>`;
+    }
+  }
 
-            } catch (err) {
-                panel.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">❌</div>
-                        <h3>Verification Failed</h3>
-                        <p style="color:var(--accent-red)">${err.message || 'Invalid or fake QR code'}</p>
-                        <button class="btn btn-ghost" style="margin-top:16px" onclick="resetScanner()">🔄 Try Again</button>
-                    </div>`;
-            }
-        }
+  async function allowExit() {
+    if (!currentPassId) return;
+    try {
+      await apiFetch(`/api/security/allow-exit/${currentPassId}`, { method:'POST', body: JSON.stringify({ gate_number:'Gate 1' }) });
+      showToast('🚪 Exit recorded successfully!', 'success');
+      document.getElementById('detailsContent').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon" style="font-size:4rem;opacity:1;">✅</div>
+          <h3 style="color:var(--green);">Exit Recorded!</h3>
+          <p>Student has been permitted to exit campus</p>
+          <button class="btn btn-primary mt-md" onclick="resetScanner()">📷 Scan Next</button>
+        </div>`;
+      loadLogs(); loadStats();
+    } catch (err) {}
+  }
 
-        // ── Allow Exit ──
-        async function allowExit() {
-            if (!currentPassId) return;
-            try {
-                await apiFetch(`/api/security/allow-exit/${currentPassId}`, {
-                    method: 'POST',
-                    body: JSON.stringify({ gate_number: 'Gate 1' })
-                });
-                showToast('Exit recorded successfully!', 'success');
-                document.getElementById('detailsContent').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon" style="font-size:4rem">✅</div>
-                        <h3 style="color:var(--accent-green)">Exit Recorded!</h3>
-                        <p>Student has been allowed to exit</p>
-                        <button class="btn btn-primary" style="margin-top:16px" onclick="resetScanner()">
-                            📷 Scan Next
-                        </button>
-                    </div>`;
-                loadLogs();
-            } catch (err) {}
-        }
+  async function allowEntry() {
+    if (!currentPassId) return;
+    try {
+      await apiFetch(`/api/security/allow-entry/${currentPassId}`, { method:'POST', body: JSON.stringify({ gate_number:'Gate 1' }) });
+      showToast('🏠 Entry recorded! Pass completed.', 'success');
+      document.getElementById('detailsContent').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon" style="font-size:4rem;opacity:1;">✅</div>
+          <h3 style="color:var(--green);">Entry Recorded!</h3>
+          <p>Student has returned — gate pass marked complete</p>
+          <button class="btn btn-primary mt-md" onclick="resetScanner()">📷 Scan Next</button>
+        </div>`;
+      loadLogs(); loadStats();
+    } catch (err) {}
+  }
 
-        // ── Allow Entry ──
-        async function allowEntry() {
-            if (!currentPassId) return;
-            try {
-                await apiFetch(`/api/security/allow-entry/${currentPassId}`, {
-                    method: 'POST',
-                    body: JSON.stringify({ gate_number: 'Gate 1' })
-                });
-                showToast('Entry recorded! Pass completed.', 'success');
-                document.getElementById('detailsContent').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon" style="font-size:4rem">✅</div>
-                        <h3 style="color:var(--accent-green)">Entry Recorded!</h3>
-                        <p>Pass has been marked as completed</p>
-                        <button class="btn btn-primary" style="margin-top:16px" onclick="resetScanner()">
-                            📷 Scan Next
-                        </button>
-                    </div>`;
-                loadLogs();
-            } catch (err) {}
-        }
+  function resetScanner() {
+    currentPassId = null; currentQrType = null;
+    document.getElementById('detailsContent').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <h3>Awaiting Scan</h3>
+        <p>Student details will appear after scanning</p>
+      </div>`;
+    document.getElementById('manualQrInput').value = '';
+    document.getElementById('scannerStatus').textContent = '';
+  }
 
-        function resetScanner() {
-            currentPassId = null;
-            currentQrType = null;
-            document.getElementById('detailsContent').innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">🔍</div>
-                    <h3>Scan a QR Code</h3>
-                    <p>Student details will appear here after scanning</p>
-                </div>`;
-            document.getElementById('manualQrInput').value = '';
-            document.getElementById('scannerStatus').textContent = 'Click "Start Camera" to scan';
-        }
-
-        // ── Activity Log ──
-        async function loadLogs() {
-            try {
-                const data = await apiFetch('/api/security/logs');
-                const logs = data.logs || [];
-
-                if (logs.length === 0) {
-                    document.getElementById('activityLog').innerHTML = `
-                        <div class="empty-state" style="padding:30px 10px">
-                            <div class="empty-icon">📋</div>
-                            <p>No activity yet</p>
-                        </div>`;
-                    return;
-                }
-
-                document.getElementById('activityLog').innerHTML = logs.map(log => `
-                    <div class="log-entry">
-                        <div class="log-icon ${log.action_type}">
-                            ${log.action_type === 'exit' ? '🚪' : '🏠'}
-                        </div>
-                        <div class="log-content">
-                            <div class="log-text">
-                                <strong>${log.student_name}</strong> (${log.roll_no})
-                                — ${log.action_type === 'exit' ? 'Exited' : 'Entered'}
-                            </div>
-                            <div class="log-time">
-                                ${log.department} • ${log.destination} • ${formatDate(log.timestamp)}
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (err) {}
-        }
-    </script>
+  async function loadLogs() {
+    try {
+      const data = await apiFetch('/api/security/logs');
+      const logs = data.logs || [];
+      if (!logs.length) {
+        document.getElementById('activityLog').innerHTML = `
+          <div class="empty-state" style="padding:24px 10px;">
+            <div class="empty-icon" style="font-size:2rem;">📋</div>
+            <p>No activity yet today</p>
+          </div>`;
+        return;
+      }
+      document.getElementById('activityLog').innerHTML = logs.map(log => `
+        <div class="log-entry">
+          <div class="log-icon ${log.action_type}">${log.action_type === 'exit' ? '🚪' : '🏠'}</div>
+          <div class="log-content">
+            <div class="log-text"><strong>${log.student_name}</strong> (${log.roll_no}) — ${log.action_type === 'exit' ? 'Exited' : 'Entered'}</div>
+            <div class="log-time">${log.department} · ${log.destination} · ${formatDateTime(log.timestamp)}</div>
+          </div>
+        </div>`).join('');
+    } catch(err) {}
+  }
+</script>
 </body>
 </html>

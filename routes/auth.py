@@ -61,7 +61,7 @@ def get_current_user():
         return jsonify({'error': 'Invalid or expired token'}), 401
 
     user = query_db(
-        'SELECT id, username, name, role, department, roll_no, photo_url, hostel_block FROM users WHERE id = ?',
+        'SELECT id, username, name, role, department, roll_no, photo_url, hostel_block, year, parent_contact FROM users WHERE id = ?',
         (payload['user_id'],), one=True
     )
 

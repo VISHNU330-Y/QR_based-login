@@ -1,165 +1,280 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HOD Dashboard — Gate Pass System</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HOD Dashboard — GatePass Pro</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <style>
+    .risk-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .risk-low    { background: rgba(16,185,129,0.12);  color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+    .risk-medium { background: rgba(245,158,11,0.12);  color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    .risk-high   { background: rgba(239,68,68,0.12);   color: #ef4444; border: 1px solid rgba(239,68,68,0.3);   }
+
+    .risk-bar { height: 4px; border-radius: 2px; margin-top: 4px; background: var(--border); overflow: hidden; }
+    .risk-bar-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+
+    .risk-panel {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 10px 14px;
+      margin-top: 10px;
+      font-size: 0.78rem;
+    }
+    .risk-factor {
+      display: flex; align-items: flex-start; gap: 7px;
+      padding: 4px 0;
+      color: var(--text-2);
+    }
+    .risk-factor-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
+    }
+    .dot-low    { background: var(--green); }
+    .dot-medium { background: var(--amber); }
+    .dot-high   { background: var(--red); }
+
+    .analytics-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px;
+      background: rgba(139,92,246,0.1);
+      border: 1px solid rgba(139,92,246,0.25);
+      border-radius: var(--r-sm);
+      color: var(--purple);
+      font-size: 0.8rem; font-weight: 600;
+      text-decoration: none;
+      transition: all var(--transition);
+    }
+    .analytics-link:hover { background: rgba(139,92,246,0.2); color: var(--purple); transform: translateY(-1px); }
+  </style>
 </head>
 <body>
-    <div class="app-container" id="app">
-        <div id="navbar"></div>
+<div class="app-container" id="app">
+  <div id="navbar"></div>
 
-        <!-- Stats -->
-        <div class="stats-grid" id="statsGrid">
-            <div class="stat-card cyan" style="animation-delay:0.1s">
-                <div class="stat-value" id="statPending">0</div>
-                <div class="stat-label">Pending</div>
-            </div>
-            <div class="stat-card green" style="animation-delay:0.2s">
-                <div class="stat-value" id="statApproved">0</div>
-                <div class="stat-label">Approved Today</div>
-            </div>
-            <div class="stat-card purple" style="animation-delay:0.3s">
-                <div class="stat-value" id="statTotal">0</div>
-                <div class="stat-label">Total Requests</div>
-            </div>
-        </div>
-
-        <!-- Filter -->
-        <div class="filter-tabs">
-            <button class="filter-tab active" onclick="loadRequests('all', this)">All</button>
-            <button class="filter-tab" onclick="loadRequests('pending', this)">⏳ Pending</button>
-            <button class="filter-tab" onclick="loadRequests('approved', this)">✅ Approved</button>
-            <button class="filter-tab" onclick="loadRequests('rejected', this)">❌ Rejected</button>
-        </div>
-
-        <!-- Requests List -->
-        <div class="request-list" id="requestsList"></div>
+  <!-- Stats + Analytics link -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <div class="stats-grid" id="statsGrid" style="flex:1;margin-bottom:0;">
+      <div class="stat-card cyan" style="animation-delay:0.1s;">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" id="statPending">—</div>
+        <div class="stat-label">Pending Review</div>
+      </div>
+      <div class="stat-card green" style="animation-delay:0.2s;">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" id="statApproved">—</div>
+        <div class="stat-label">Approved Today</div>
+      </div>
+      <div class="stat-card purple" style="animation-delay:0.3s;">
+        <div class="stat-icon">📊</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-label">Total Requests</div>
+      </div>
     </div>
+    <a href="/analytics" class="analytics-link" style="flex-shrink:0;">📊 AI Analytics Dashboard</a>
+  </div>
 
-    <script src="/static/js/app.js"></script>
-    <script>
-        const user = requireAuth('hod');
-        if (user) init();
+  <!-- AI Overdue Alert -->
+  <div id="overdueAlert" style="display:none;margin-bottom:16px;"></div>
 
-        async function init() {
-            document.getElementById('navbar').innerHTML = renderNavbar(user, '👨‍🏫 HOD');
-            loadStats();
-            loadRequests('all');
-        }
+  <!-- Filter Tabs -->
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="loadRequests('all',this)">🗂 All Requests</button>
+    <button class="filter-tab" onclick="loadRequests('pending',this)">⏳ Pending</button>
+    <button class="filter-tab" onclick="loadRequests('approved',this)">✅ Approved</button>
+    <button class="filter-tab" onclick="loadRequests('rejected',this)">❌ Rejected</button>
+  </div>
 
-        async function loadStats() {
-            try {
-                const data = await apiFetch('/api/hod/stats');
-                document.getElementById('statPending').textContent = data.pending;
-                document.getElementById('statApproved').textContent = data.approved_today;
-                document.getElementById('statTotal').textContent = data.total;
-            } catch (err) {}
-        }
+  <div class="request-list" id="requestsList">
+    <div style="text-align:center;padding:40px;"><div class="spinner"></div></div>
+  </div>
+</div>
 
-        async function loadRequests(status, btn) {
-            if (btn) {
-                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-                btn.classList.add('active');
-            }
+<script src="/static/js/app.js"></script>
+<script>
+  const user = requireAuth('hod');
+  if (user) init();
 
-            const list = document.getElementById('requestsList');
-            list.innerHTML = '<div class="spinner"></div>';
+  let riskCache = {};
 
-            try {
-                const data = await apiFetch(`/api/hod/requests?status=${status}`);
-                const requests = data.requests || [];
+  async function init() {
+    document.getElementById('navbar').innerHTML = renderNavbar(user);
+    loadStats();
+    loadRequests('all');
+    loadOverdueAlert();
+    setInterval(loadStats, 30000);
+    setInterval(loadOverdueAlert, 60000);
+  }
 
-                if (requests.length === 0) {
-                    list.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">📋</div>
-                            <h3>No requests found</h3>
-                            <p>No ${status === 'all' ? '' : status} requests from your department</p>
-                        </div>`;
-                    return;
-                }
+  async function loadStats() {
+    try {
+      const data = await apiFetch('/api/hod/stats');
+      animateCounter(document.getElementById('statPending'),  data.pending);
+      animateCounter(document.getElementById('statApproved'), data.approved_today);
+      animateCounter(document.getElementById('statTotal'),    data.total);
+    } catch (err) {}
+  }
 
-                list.innerHTML = requests.map((r, i) => {
-                    const initials = r.student_name ? r.student_name.split(' ').map(n => n[0]).join('') : '?';
-                    return `
-                    <div class="request-card" style="animation-delay:${i * 0.08}s">
-                        <div class="request-card-header">
-                            <div class="request-student">
-                                <div class="request-student-avatar">${initials}</div>
-                                <div class="request-student-info">
-                                    <div class="student-name">${r.student_name}</div>
-                                    <div class="student-meta">${r.roll_no} • ${r.department} • Year ${r.year || '-'} • ${r.hostel_block || '-'}</div>
-                                </div>
-                            </div>
-                            ${getStatusBadge(r.hod_status)}
-                        </div>
-                        <div class="request-details">
-                            <div class="request-detail">
-                                <span class="detail-label">📅 Date</span>
-                                <span class="detail-value">${formatDate(r.date)}</span>
-                            </div>
-                            <div class="request-detail">
-                                <span class="detail-label">⏰ Exit</span>
-                                <span class="detail-value">${formatTime(r.exit_time)}</span>
-                            </div>
-                            <div class="request-detail">
-                                <span class="detail-label">⏳ Return</span>
-                                <span class="detail-value">${formatTime(r.return_time)}</span>
-                            </div>
-                            <div class="request-detail">
-                                <span class="detail-label">📍 Destination</span>
-                                <span class="detail-value">${r.destination}</span>
-                            </div>
-                            <div class="request-detail" style="grid-column: span 2">
-                                <span class="detail-label">📄 Reason</span>
-                                <span class="detail-value">${r.reason}</span>
-                            </div>
-                        </div>
-                        ${r.hod_status === 'pending' ? `
-                        <div class="request-actions">
-                            <input class="remarks-input" id="remarks-${r.id}" placeholder="Add remarks (optional)">
-                            <button class="btn btn-success btn-sm" onclick="approveRequest(${r.id})">✅ Approve</button>
-                            <button class="btn btn-danger btn-sm" onclick="rejectRequest(${r.id})">❌ Reject</button>
-                        </div>` : `
-                        ${r.hod_remarks ? `<div style="margin-top:12px;font-size:0.85rem;color:var(--text-secondary)">
-                            <strong>Remarks:</strong> ${r.hod_remarks}</div>` : ''}
-                        `}
-                    </div>`;
-                }).join('');
+  async function loadOverdueAlert() {
+    try {
+      const data = await apiFetch('/api/ai/overdue');
+      const el = document.getElementById('overdueAlert');
+      if (data.count > 0) {
+        el.style.display = 'block';
+        el.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;
+               background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.25);
+               border-radius:var(--r-md);">
+            <span style="font-size:1.3rem;">🚨</span>
+            <div style="flex:1;">
+              <strong style="color:var(--red);">${data.count} student(s) are overdue</strong>
+              <span style="color:var(--text-2);font-size:0.82rem;margin-left:8px;">${data.critical || 0} critical</span>
+            </div>
+            <a href="/analytics" style="font-size:0.78rem;color:var(--red);border:1px solid rgba(239,68,68,0.3);padding:5px 12px;border-radius:20px;text-decoration:none;">View Details →</a>
+          </div>`;
+      } else {
+        el.style.display = 'none';
+      }
+    } catch (err) {}
+  }
 
-            } catch (err) {
-                list.innerHTML = '<div class="empty-state"><h3>Failed to load</h3></div>';
-            }
-        }
+  async function loadRequests(status, btn) {
+    if (btn) {
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    const list = document.getElementById('requestsList');
+    list.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
+    try {
+      const data = await apiFetch(`/api/hod/requests?status=${status}`);
+      const requests = data.requests || [];
+      if (!requests.length) {
+        list.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div>
+          <h3>No ${status === 'all' ? '' : status} requests</h3><p>No requests from your department</p></div>`;
+        return;
+      }
 
-        async function approveRequest(passId) {
-            const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
-            try {
-                await apiFetch(`/api/hod/approve/${passId}`, {
-                    method: 'POST',
-                    body: JSON.stringify({ remarks })
-                });
-                showToast('Request approved!', 'success');
-                loadRequests('all');
-                loadStats();
-            } catch (err) {}
-        }
+      // Render cards first, then fetch AI scores in bulk
+      list.innerHTML = requests.map((r,i) => renderRequestCard(r, i)).join('');
 
-        async function rejectRequest(passId) {
-            const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
-            if (!confirm('Reject this request?')) return;
-            try {
-                await apiFetch(`/api/hod/reject/${passId}`, {
-                    method: 'POST',
-                    body: JSON.stringify({ remarks: remarks || 'Rejected by HOD' })
-                });
-                showToast('Request rejected', 'info');
-                loadRequests('all');
-                loadStats();
-            } catch (err) {}
-        }
-    </script>
+      // Bulk fetch AI risk scores
+      if (requests.some(r => r.hod_status === 'pending')) {
+        const pendingIds = requests.filter(r => r.hod_status === 'pending').map(r => r.id);
+        fetchBulkRisk(pendingIds);
+      }
+    } catch (err) {
+      list.innerHTML = '<div class="empty-state"><h3>⚠ Failed to load</h3></div>';
+    }
+  }
+
+  async function fetchBulkRisk(passIds) {
+    try {
+      const data = await apiFetch('/api/ai/risk/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ pass_ids: passIds })
+      });
+      const scores = data.risk_scores || {};
+      for (const [pid, ai] of Object.entries(scores)) {
+        riskCache[pid] = ai;
+        updateRiskUI(parseInt(pid), ai);
+      }
+    } catch (err) {}
+  }
+
+  function updateRiskUI(passId, ai) {
+    const riskEl = document.getElementById(`risk-${passId}`);
+    if (!riskEl) return;
+
+    const barColor = ai.level === 'low' ? '#10b981' : ai.level === 'medium' ? '#f59e0b' : '#ef4444';
+    const icon = ai.level === 'low' ? '🟢' : ai.level === 'medium' ? '🟡' : '🔴';
+
+    riskEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span class="risk-badge risk-${ai.level}">${icon} AI Risk: ${ai.score}/100</span>
+        <span style="font-size:0.72rem;color:var(--text-3);">${ai.nlp.reason_category}</span>
+      </div>
+      <div class="risk-bar"><div class="risk-bar-fill" style="width:${ai.score}%;background:${barColor};"></div></div>
+      <div style="margin-top:6px;font-size:0.75rem;color:var(--text-2);">${ai.recommendation}</div>
+      ${ai.factors.length ? `
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">
+        ${ai.factors.slice(0,4).map(f => `
+          <span style="padding:2px 8px;border-radius:10px;font-size:0.68rem;
+                background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text-2);">
+            ${f.impact === 'high' ? '⬆' : f.impact === 'medium' ? '➡' : '⬇'} ${f.name}
+          </span>`).join('')}
+      </div>` : ''}`;
+  }
+
+  function renderRequestCard(r, i) {
+    const initials = r.student_name ? r.student_name.split(' ').map(n=>n[0]).join('') : '?';
+    return `
+    <div class="request-card" style="animation-delay:${i*0.07}s;">
+      <div class="request-card-header">
+        <div class="request-student">
+          <div class="request-student-avatar">${initials}</div>
+          <div class="request-student-info">
+            <div class="student-name">${r.student_name}</div>
+            <div class="student-meta">
+              <span>🎓 ${r.roll_no}</span><span>🏫 ${r.department}</span>
+              <span>📚 Yr ${r.year||'—'}</span><span>🏠 ${r.hostel_block||'—'}</span>
+            </div>
+          </div>
+        </div>
+        ${getStatusBadge(r.hod_status)}
+      </div>
+
+      <div class="request-details">
+        <div class="request-detail"><span class="detail-label">📅 Date</span><span class="detail-value">${formatDate(r.date)}</span></div>
+        <div class="request-detail"><span class="detail-label">🕐 Exit</span><span class="detail-value">${formatTime(r.exit_time)}</span></div>
+        <div class="request-detail"><span class="detail-label">🕔 Return</span><span class="detail-value">${r.return_date && r.return_date !== r.date ? formatDate(r.return_date) + ' ' : ''}${formatTime(r.return_time)}</span></div>
+        <div class="request-detail"><span class="detail-label">📍 Destination</span><span class="detail-value">${r.destination}</span></div>
+        <div class="request-detail"><span class="detail-label">📱 Phone</span><span class="detail-value">${r.student_phone || '—'}</span></div>
+        <div class="request-detail" style="grid-column:1/-1;"><span class="detail-label">📄 Reason</span><span class="detail-value">${r.reason}</span></div>
+      </div>
+
+      ${r.hod_status === 'pending' ? `
+      <!-- AI Risk Score (loads asynchronously) -->
+      <div id="risk-${r.id}" style="margin-top:8px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--r-sm);">
+        <div style="font-size:0.78rem;color:var(--text-3);">🤖 Calculating AI risk score...</div>
+      </div>
+
+      <div class="request-actions">
+        <input class="remarks-input" id="remarks-${r.id}" placeholder="Add remarks (optional)">
+        <button class="btn btn-success btn-sm" onclick="approveRequest(${r.id})">✅ Approve</button>
+        <button class="btn btn-danger  btn-sm" onclick="rejectRequest(${r.id})">❌ Reject</button>
+      </div>` : r.hod_remarks ? `
+      <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:var(--r-xs);border-left:3px solid var(--border);font-size:0.82rem;color:var(--text-2);">
+        <strong>Your Remarks:</strong> ${r.hod_remarks}
+      </div>` : ''}
+    </div>`;
+  }
+
+  async function approveRequest(passId) {
+    const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
+    const risk = riskCache[passId];
+    if (risk && risk.level === 'high') {
+      if (!confirm(`⚠️ This request has a HIGH AI risk score (${risk.score}/100).\n\n${risk.recommendation}\n\nAre you sure you want to approve it?`)) return;
+    }
+    try {
+      await apiFetch(`/api/hod/approve/${passId}`, { method:'POST', body: JSON.stringify({ remarks }) });
+      showToast('✅ Request approved and forwarded to Warden!', 'success');
+      loadRequests('all'); loadStats();
+    } catch (err) {}
+  }
+
+  async function rejectRequest(passId) {
+    const remarks = document.getElementById(`remarks-${passId}`)?.value || '';
+    if (!confirm('Reject this gate pass request?')) return;
+    try {
+      await apiFetch(`/api/hod/reject/${passId}`, { method:'POST', body: JSON.stringify({ remarks: remarks||'Rejected by HOD' }) });
+      showToast('Request rejected.', 'info');
+      loadRequests('all'); loadStats();
+    } catch (err) {}
+  }
+</script>
 </body>
 </html>

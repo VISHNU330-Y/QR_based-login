@@ -1,3 +1,4 @@
+from datetime import date as date_cls
 from flask import Blueprint, request, jsonify
 from models.database import query_db, execute_db
 from utils.jwt_utils import login_required
@@ -13,10 +14,26 @@ def apply_gate_pass():
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
-    required = ['reason', 'destination', 'date', 'exit_time', 'return_time']
+    required = ['reason', 'destination', 'date', 'exit_time', 'return_time', 'student_phone', 'parent_contact']
     for field in required:
         if not data.get(field):
-            return jsonify({'error': f'{field} is required'}), 400
+            label = field.replace('_', ' ').title()
+            return jsonify({'error': f'{label} is required'}), 400
+
+    try:
+        outing_date = date_cls.fromisoformat(data['date'])
+        if outing_date < date_cls.today():
+            return jsonify({'error': 'Outing date cannot be in the past'}), 400
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
+    if data.get('return_date'):
+        try:
+            ret_date = date_cls.fromisoformat(data['return_date'])
+            if ret_date < outing_date:
+                return jsonify({'error': 'Return date cannot be before outing date'}), 400
+        except ValueError:
+            return jsonify({'error': 'Invalid return date format'}), 400
 
     student = query_db(
         'SELECT * FROM users WHERE id = ?',
@@ -27,9 +44,10 @@ def apply_gate_pass():
 
     pass_id = execute_db(
         '''INSERT INTO gate_passes
-           (student_id, reason, destination, date, exit_time, return_time, parent_contact,
+           (student_id, reason, destination, date, exit_time, return_time,
+            return_date, student_phone, parent_contact,
             hod_status, warden_status, pass_status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'requested')''',
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'requested')''',
         (
             request.user['user_id'],
             data['reason'],
@@ -37,6 +55,8 @@ def apply_gate_pass():
             data['date'],
             data['exit_time'],
             data['return_time'],
+            data.get('return_date', data['date']),
+            data['student_phone'],
             data.get('parent_contact', student.get('parent_contact', ''))
         )
     )

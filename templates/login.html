@@ -1,118 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="QR-Based Gate Pass System — Secure Campus Entry & Exit Management">
-    <title>Gate Pass System — Login</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QR-Based Gate Pass System — Secure Campus Entry & Exit Management for College Students">
+  <title>GatePass Pro — Campus Security System</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <style>
+    .pw-toggle {
+      position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: var(--text-3); font-size: 1rem;
+      transition: color var(--transition);
+    }
+    .pw-toggle:hover { color: var(--text-1); }
+    .divider-or {
+      display: flex; align-items: center; gap: 12px;
+      margin: 20px 0;
+      font-size: 0.72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px;
+    }
+    .divider-or::before, .divider-or::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+  </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <div class="logo">🔐</div>
-                <h1>Gate Pass System</h1>
-                <p>QR-Based Campus Security</p>
+  <div class="login-page">
+
+    <!-- LEFT — Branding Panel -->
+    <div class="login-left">
+      <div class="login-left-bg"></div>
+      <div class="login-left-content">
+        <div class="login-logo">🔐</div>
+
+        <div class="login-tagline">Final Year Project · 2025–26</div>
+        <h1 class="login-title">
+          Smart Campus<br>
+          <span>Gate Pass</span><br>
+          System
+        </h1>
+        <p class="login-desc">
+          A QR-based digital gate pass management system with multi-role approval workflow, real-time tracking, and instant security verification.
+        </p>
+
+        <div class="login-features">
+          <div class="login-feature">
+            <div class="feature-icon cyan">📱</div>
+            <div>
+              <div class="login-feature-text">QR Code Verification</div>
+              <div class="login-feature-sub">Unique, tamper-proof QR for every pass</div>
             </div>
-
-            <div id="loginError" class="login-error"></div>
-
-            <form class="login-form" id="loginForm">
-                <div class="form-group">
-                    <label class="form-label" for="username">Username / Roll Number</label>
-                    <input class="form-input" type="text" id="username" placeholder="e.g. STU001, HOD_CSE" required autocomplete="username">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="password">Password</label>
-                    <input class="form-input" type="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
-                </div>
-                <button type="submit" class="btn btn-primary btn-lg" id="loginBtn">
-                    🚀 Sign In
-                </button>
-            </form>
-
-            <div class="demo-accounts">
-                <h4>Quick Demo Login</h4>
-                <div class="demo-grid">
-                    <button class="demo-btn" onclick="fillDemo('STU001', 'pass123')">
-                        <span class="demo-role">👨‍🎓 Student</span>
-                        STU001
-                    </button>
-                    <button class="demo-btn" onclick="fillDemo('HOD_CSE', 'pass123')">
-                        <span class="demo-role">👨‍🏫 HOD (CSE)</span>
-                        HOD_CSE
-                    </button>
-                    <button class="demo-btn" onclick="fillDemo('WARDEN1', 'pass123')">
-                        <span class="demo-role">🧑‍💼 Warden</span>
-                        WARDEN1
-                    </button>
-                    <button class="demo-btn" onclick="fillDemo('SEC001', 'pass123')">
-                        <span class="demo-role">🛡️ Security</span>
-                        SEC001
-                    </button>
-                </div>
+          </div>
+          <div class="login-feature">
+            <div class="feature-icon green">✅</div>
+            <div>
+              <div class="login-feature-text">Multi-Level Approval</div>
+              <div class="login-feature-sub">HOD → Warden → Security workflow</div>
             </div>
+          </div>
+          <div class="login-feature">
+            <div class="feature-icon purple">🛡️</div>
+            <div>
+              <div class="login-feature-text">Secure JWT Authentication</div>
+              <div class="login-feature-sub">Role-based access control</div>
+            </div>
+          </div>
+          <div class="login-feature">
+            <div class="feature-icon amber">📊</div>
+            <div>
+              <div class="login-feature-text">Real-Time Dashboard</div>
+              <div class="login-feature-sub">Live stats for all stakeholders</div>
+            </div>
+          </div>
         </div>
+
+        <div style="margin-top:40px; padding:16px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r-md);">
+          <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-3); margin-bottom:8px;">Technology Stack</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <span style="padding:4px 12px; background:rgba(0,212,255,0.1); border:1px solid rgba(0,212,255,0.2); border-radius:20px; font-size:0.75rem; color:var(--cyan);">Python Flask</span>
+            <span style="padding:4px 12px; background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.2); border-radius:20px; font-size:0.75rem; color:var(--purple);">SQLite</span>
+            <span style="padding:4px 12px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:20px; font-size:0.75rem; color:var(--green);">JWT Auth</span>
+            <span style="padding:4px 12px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); border-radius:20px; font-size:0.75rem; color:var(--amber);">QR Codes</span>
+            <span style="padding:4px 12px; background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.2); border-radius:20px; font-size:0.75rem; color:var(--blue);">Vanilla JS</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <script src="/static/js/app.js"></script>
-    <script>
-        // Redirect if already logged in
-        const existingUser = getUser();
-        if (existingUser && getToken()) {
-            window.location.href = '/' + existingUser.role;
-        }
+    <!-- RIGHT — Login Form -->
+    <div class="login-right">
+      <div class="login-card">
+        <div class="login-card-header">
+          <div style="width:48px;height:48px;background:var(--grad-brand);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin:0 auto 16px;box-shadow:var(--glow-cyan);">🔐</div>
+          <h2 class="gradient-text">Welcome Back</h2>
+          <p>Sign in to your GatePass account</p>
+        </div>
 
-        function fillDemo(username, password) {
-            document.getElementById('username').value = username;
-            document.getElementById('password').value = password;
-        }
+        <div id="loginError" class="login-error"></div>
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const errorEl = document.getElementById('loginError');
-            const btn = document.getElementById('loginBtn');
-            errorEl.style.display = 'none';
+        <form id="loginForm" autocomplete="on">
+          <div class="form-group">
+            <label class="form-label" for="username">Username / Roll Number</label>
+            <div class="input-wrap">
+              <span class="input-icon">👤</span>
+              <input class="form-input" type="text" id="username"
+                placeholder="e.g. STU001 or HOD_CSE" required autocomplete="username">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <div class="input-wrap" style="position:relative;">
+              <span class="input-icon">🔑</span>
+              <input class="form-input" type="password" id="password"
+                placeholder="Enter your password" required autocomplete="current-password">
+              <button type="button" class="pw-toggle" id="pwToggle" onclick="togglePw()">👁️</button>
+            </div>
+          </div>
 
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
+          <button type="submit" class="btn btn-primary btn-lg w-full" id="loginBtn" style="margin-top:8px;">
+            <span id="loginBtnText">Sign In</span>
+          </button>
+        </form>
 
-            if (!username || !password) {
-                errorEl.textContent = 'Please fill in all fields';
-                errorEl.style.display = 'block';
-                return;
-            }
+        <div class="divider-or">Quick Demo Access</div>
 
-            btn.disabled = true;
-            btn.textContent = '⏳ Signing in...';
+        <div class="demo-accounts">
+          <div class="demo-grid">
+            <button class="demo-btn" onclick="fillDemo('STU001','pass123')" id="demoStudent">
+              <span class="demo-role">👨‍🎓 Student</span>
+              <span class="demo-id">STU001 / pass123</span>
+            </button>
+            <button class="demo-btn" onclick="fillDemo('HOD_CSE','pass123')" id="demoHod">
+              <span class="demo-role">👨‍🏫 HOD</span>
+              <span class="demo-id">HOD_CSE / pass123</span>
+            </button>
+            <button class="demo-btn" onclick="fillDemo('WARDEN1','pass123')" id="demoWarden">
+              <span class="demo-role">🏠 Warden</span>
+              <span class="demo-id">WARDEN1 / pass123</span>
+            </button>
+            <button class="demo-btn" onclick="fillDemo('SEC001','pass123')" id="demoSec">
+              <span class="demo-role">🛡️ Security</span>
+              <span class="demo-id">SEC001 / pass123</span>
+            </button>
+          </div>
+        </div>
 
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
+        <p style="text-align:center; margin-top:24px; font-size:0.72rem; color:var(--text-3);">
+          🔒 Secured with AES encryption & JWT tokens
+        </p>
+      </div>
+    </div>
+  </div>
 
-                const data = await response.json();
+  <script src="/static/js/app.js"></script>
+  <script>
+    // Redirect if already logged in
+    const existingUser = getUser();
+    if (existingUser && getToken()) {
+      window.location.href = '/' + existingUser.role;
+    }
 
-                if (!response.ok) {
-                    errorEl.textContent = data.error || 'Login failed';
-                    errorEl.style.display = 'block';
-                    return;
-                }
+    function fillDemo(username, password) {
+      document.getElementById('username').value = username;
+      document.getElementById('password').value = password;
+      document.getElementById('username').parentElement.classList.add('filled');
+      document.getElementById('password').parentElement.classList.add('filled');
+    }
 
-                saveAuth(data.token, data.user);
-                window.location.href = '/' + data.user.role;
+    function togglePw() {
+      const pw = document.getElementById('password');
+      const btn = document.getElementById('pwToggle');
+      if (pw.type === 'password') {
+        pw.type = 'text'; btn.textContent = '🙈';
+      } else {
+        pw.type = 'password'; btn.textContent = '👁️';
+      }
+    }
 
-            } catch (err) {
-                errorEl.textContent = 'Network error. Is the server running?';
-                errorEl.style.display = 'block';
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '🚀 Sign In';
-            }
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl  = document.getElementById('loginError');
+      const btn      = document.getElementById('loginBtn');
+      const btnText  = document.getElementById('loginBtnText');
+      errorEl.style.display = 'none';
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if (!username || !password) {
+        errorEl.textContent = '⚠️ Please fill in all fields';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span class="spinner spinner-sm"></span> Signing in...';
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
         });
-    </script>
+        const data = await response.json();
+        if (!response.ok) {
+          errorEl.textContent = '❌ ' + (data.error || 'Login failed. Check credentials.');
+          errorEl.style.display = 'block';
+          return;
+        }
+        saveAuth(data.token, data.user);
+        window.location.href = '/' + data.user.role;
+      } catch (err) {
+        errorEl.textContent = '🌐 Network error. Is the server running?';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Sign In';
+      }
+    });
+  </script>
 </body>
 </html>

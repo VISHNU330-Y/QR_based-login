@@ -1,287 +1,477 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard — Gate Pass System</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Dashboard — GatePass Pro</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <style>
+    .ai-meter { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin: 6px 0; }
+    .ai-meter-fill { height: 100%; border-radius: 3px; transition: all 0.6s ease; }
+    .ai-tip { display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:0.82rem; }
+    .ai-tip:last-child { border-bottom:none; }
+    .ai-suggestion { padding:6px 12px;background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.15);border-radius:var(--r-xs);font-size:0.78rem;color:var(--text-2);display:flex;align-items:flex-start;gap:8px; }
+  </style>
 </head>
 <body>
-    <div class="app-container" id="app">
-        <!-- Navbar injected by JS -->
-        <div id="navbar"></div>
+<div class="app-container" id="app">
+  <div id="navbar"></div>
 
-        <!-- Tabs -->
-        <div class="tab-bar">
-            <button class="tab-btn active" onclick="switchTab('apply')">📝 Apply</button>
-            <button class="tab-btn" onclick="switchTab('passes')">📋 My Passes</button>
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabApplyBtn" onclick="switchTab('apply',this)">
+      📝 Apply for Outing
+    </button>
+    <button class="tab-btn" id="tabPassesBtn" onclick="switchTab('passes',this)">
+      📋 My Gate Passes
+      <span id="passCount" style="background:rgba(0,212,255,0.15);color:var(--cyan);border-radius:20px;padding:1px 8px;font-size:0.72rem;"></span>
+    </button>
+  </div>
+
+  <!-- ─── APPLY TAB ─── -->
+  <div class="tab-content active" id="tab-apply">
+
+    <!-- AI Smart Tips -->
+    <div id="aiTipsPanel" style="margin-bottom:16px;"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;">
+
+    <div class="card" style="animation-delay:0.1s;">
+      <div class="card-header">
+        <h2><div class="card-header-icon">📝</div>Apply for Outing Pass</h2>
+        <span class="badge badge-active">New Request</span>
+      </div>
+
+      <form id="applyForm">
+        <div class="form-group">
+          <label class="form-label" for="reason">Reason for Outing <span class="required">*</span></label>
+          <textarea class="form-textarea" id="reason" rows="3"
+            placeholder="Briefly explain your reason (e.g., medical appointment, family function, personal work)..." required></textarea>
         </div>
 
-        <!-- Apply Tab -->
-        <div class="tab-content active" id="tab-apply">
-            <div class="card" style="animation-delay:0.1s">
-                <div class="card-header">
-                    <h2>📝 Apply for Outing</h2>
-                </div>
-                <form id="applyForm">
-                    <div class="form-group">
-                        <label class="form-label">Reason for Outing</label>
-                        <textarea class="form-textarea" id="reason" placeholder="Enter the reason for your outing..." required></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Date</label>
-                            <input class="form-input" type="date" id="date" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Destination</label>
-                            <input class="form-input" type="text" id="destination" placeholder="e.g. City Hospital" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Exit Time</label>
-                            <input class="form-input" type="time" id="exitTime" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Expected Return Time</label>
-                            <input class="form-input" type="time" id="returnTime" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Parent Contact Number</label>
-                        <input class="form-input" type="tel" id="parentContact" placeholder="e.g. 9876543210">
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">🚀 Submit Request</button>
-                </form>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="destination">Destination <span class="required">*</span></label>
+            <div class="input-wrap">
+              <span class="input-icon">📍</span>
+              <input class="form-input" type="text" id="destination"
+                placeholder="e.g. City Hospital, Bus Stand" required>
             </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="studentPhone">Your Phone Number <span class="required">*</span></label>
+            <div class="input-wrap">
+              <span class="input-icon">📱</span>
+              <input class="form-input" type="tel" id="studentPhone"
+                placeholder="e.g. 9876543210" pattern="[0-9]{10}" maxlength="10" required>
+            </div>
+          </div>
         </div>
 
-        <!-- Passes Tab -->
-        <div class="tab-content" id="tab-passes">
-            <div class="filter-tabs" id="filterTabs">
-                <button class="filter-tab active" onclick="filterPasses('all')">All</button>
-                <button class="filter-tab" onclick="filterPasses('requested')">⏳ Pending</button>
-                <button class="filter-tab" onclick="filterPasses('approved')">✅ Approved</button>
-                <button class="filter-tab" onclick="filterPasses('completed')">✔ Completed</button>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="date">Date of Outing <span class="required">*</span></label>
+            <div class="input-wrap">
+              <span class="input-icon">📅</span>
+              <input class="form-input" type="date" id="date" required>
             </div>
-            <div class="request-list" id="passesList"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="exitTime">Exit Time <span class="required">*</span></label>
+            <div class="input-wrap">
+              <span class="input-icon">🕐</span>
+              <input class="form-input" type="time" id="exitTime" required>
+            </div>
+          </div>
         </div>
 
-        <!-- QR Modal -->
-        <div class="modal-overlay" id="qrModal">
-            <div class="modal">
-                <div class="modal-header">
-                    <h2>🎟️ Your QR Codes</h2>
-                    <button class="modal-close" onclick="closeQrModal()">✕</button>
-                </div>
-                <div id="qrContent"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="returnDate">Returning Date <span class="required">*</span></label>
+            <div class="input-wrap">
+              <span class="input-icon">📅</span>
+              <input class="form-input" type="date" id="returnDate" required>
             </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="returnTime">Returning Time <span class="required">*</span></label>
+            <div class="input-wrap">
+              <span class="input-icon">🕔</span>
+              <input class="form-input" type="time" id="returnTime" required>
+            </div>
+          </div>
         </div>
+
+        <div class="form-group">
+          <label class="form-label" for="parentContact">Parent / Guardian Contact <span class="required">*</span></label>
+          <div class="input-wrap">
+            <span class="input-icon">📞</span>
+            <input class="form-input" type="tel" id="parentContact"
+              placeholder="e.g. 9876543210" pattern="[0-9]{10}" maxlength="10" required>
+          </div>
+        </div>
+
+        <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:var(--r-sm);padding:12px 16px;margin-bottom:20px;font-size:0.82rem;color:var(--amber);display:flex;gap:10px;align-items:flex-start;">
+          <span style="font-size:1.1rem;flex-shrink:0;">⚠️</span>
+          <div>Your request will be reviewed by your <strong>HOD</strong> and then the <strong>Hostel Warden</strong>. A QR code will be generated upon full approval. Ensure you carry it at the gate.</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg w-full" id="submitBtn">
+          🚀 Submit Gate Pass Request
+        </button>
+      </form>
     </div>
 
-    <script src="/static/js/app.js"></script>
-    <script>
-        const user = requireAuth('student');
-        if (user) init();
+    <!-- AI Analyzer Sidebar -->
+    <div>
+      <div class="card" style="animation-delay:0.2s;position:sticky;top:90px;">
+        <div class="card-header">
+          <h2><div class="card-header-icon">🤖</div>AI Risk Analyzer</h2>
+        </div>
+        <div id="aiAnalyzer">
+          <div style="text-align:center;padding:20px;color:var(--text-3);">
+            <div style="font-size:2rem;margin-bottom:8px;">🤖</div>
+            <div style="font-size:0.82rem;">Fill in your reason &amp; destination to see your AI risk prediction before submitting.</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        let allPasses = [];
-        let currentFilter = 'all';
+    </div><!-- end grid -->
+  </div>
 
-        function init() {
-            document.getElementById('navbar').innerHTML = renderNavbar(user, '👨‍🎓 Student');
-            // Set default date to today
-            document.getElementById('date').valueAsDate = new Date();
-            loadPasses();
-        }
+  <!-- ─── MY PASSES TAB ─── -->
+  <div class="tab-content" id="tab-passes">
+    <div class="filter-tabs" id="filterTabs">
+      <button class="filter-tab active" onclick="filterPasses('all',this)">🗂 All</button>
+      <button class="filter-tab" onclick="filterPasses('requested',this)">⏳ Pending</button>
+      <button class="filter-tab" onclick="filterPasses('approved',this)">✅ Approved</button>
+      <button class="filter-tab" onclick="filterPasses('completed',this)">✔ Completed</button>
+      <button class="filter-tab" onclick="filterPasses('rejected',this)">❌ Rejected</button>
+    </div>
+    <div class="request-list" id="passesList"></div>
+  </div>
 
-        // ── Tab switching ──
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('tab-' + tab).classList.add('active');
-            if (tab === 'passes') loadPasses();
-        }
+  <!-- QR Modal -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🎟️ Your Gate Pass QR Codes</h2>
+        <button class="modal-close" onclick="closeQrModal()">✕</button>
+      </div>
+      <p style="font-size:0.85rem;color:var(--text-2);margin-bottom:20px;text-align:center;">
+        Show these QR codes to the security guard at the gate. Exit QR first, Entry QR when returning.
+      </p>
+      <div id="qrContent"></div>
+    </div>
+  </div>
+</div>
 
-        // ── Apply form ──
-        document.getElementById('applyForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.textContent = '⏳ Submitting...';
+<script src="/static/js/app.js"></script>
+<script>
+  const user = requireAuth('student');
+  if (user) init();
 
-            try {
-                const data = await apiFetch('/api/student/apply', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        reason: document.getElementById('reason').value,
-                        date: document.getElementById('date').value,
-                        destination: document.getElementById('destination').value,
-                        exit_time: document.getElementById('exitTime').value,
-                        return_time: document.getElementById('returnTime').value,
-                        parent_contact: document.getElementById('parentContact').value
-                    })
-                });
+  let allPasses = [];
+  let currentFilter = 'all';
+  let analyzeTimer = null;
 
-                showToast('Gate pass request submitted!', 'success');
-                document.getElementById('applyForm').reset();
-                document.getElementById('date').valueAsDate = new Date();
+  function init() {
+    document.getElementById('navbar').innerHTML = renderNavbar(user);
 
-                // Switch to passes tab
-                switchTab('passes');
-                document.querySelectorAll('.tab-btn')[1].classList.add('active');
-                document.querySelectorAll('.tab-btn')[0].classList.remove('active');
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date').valueAsDate = new Date();
+    document.getElementById('date').min = today;
+    document.getElementById('returnDate').valueAsDate = new Date();
+    document.getElementById('returnDate').min = today;
 
-            } catch (err) {
-                // Error shown by apiFetch
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '🚀 Submit Request';
-            }
-        });
+    document.getElementById('date').addEventListener('change', function() {
+      document.getElementById('returnDate').min = this.value;
+      if (document.getElementById('returnDate').value < this.value) {
+        document.getElementById('returnDate').value = this.value;
+      }
+    });
 
-        // ── Load passes ──
-        async function loadPasses() {
-            try {
-                const data = await apiFetch('/api/student/passes');
-                allPasses = data.passes || [];
-                renderPasses();
-            } catch (err) {}
-        }
+    loadPasses();
+    loadSmartTips();
 
-        function filterPasses(filter) {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-            renderPasses();
-        }
+    // Debounced AI analyzer on reason/destination/time change
+    ['reason','destination','exitTime','returnTime','returnDate','date','studentPhone'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => {
+        clearTimeout(analyzeTimer);
+        analyzeTimer = setTimeout(runAiAnalysis, 900);
+      });
+    });
+  }
 
-        function renderPasses() {
-            const list = document.getElementById('passesList');
-            let filtered = allPasses;
+  async function loadSmartTips() {
+    try {
+      const data = await apiFetch('/api/ai/tips');
+      const tips = data.tips || [];
+      const panel = document.getElementById('aiTipsPanel');
+      if (!tips.length) return;
+      panel.innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          ${tips.map(t => `
+            <div style="flex:1;min-width:240px;display:flex;align-items:flex-start;gap:10px;padding:12px 16px;
+                 background:${t.type==='warning'?'rgba(245,158,11,0.06)':t.type==='success'?'rgba(16,185,129,0.06)':'rgba(0,212,255,0.06)'};
+                 border:1px solid ${t.type==='warning'?'rgba(245,158,11,0.2)':t.type==='success'?'rgba(16,185,129,0.2)':'rgba(0,212,255,0.2)'};
+                 border-radius:var(--r-md);">
+              <span style="font-size:1.1rem;flex-shrink:0;">${t.icon}</span>
+              <span style="font-size:0.82rem;color:var(--text-2);">${t.message}</span>
+            </div>`).join('')}
+        </div>`;
+    } catch(err) {}
+  }
 
-            if (currentFilter === 'requested') {
-                filtered = allPasses.filter(p => ['requested', 'hod_approved'].includes(p.pass_status));
-            } else if (currentFilter === 'approved') {
-                filtered = allPasses.filter(p => ['warden_approved', 'exit_used'].includes(p.pass_status));
-            } else if (currentFilter === 'completed') {
-                filtered = allPasses.filter(p => p.pass_status === 'completed');
-            }
+  async function runAiAnalysis() {
+    const reason      = document.getElementById('reason')?.value?.trim();
+    const destination = document.getElementById('destination')?.value?.trim();
+    const exitTime    = document.getElementById('exitTime')?.value;
+    const returnTime  = document.getElementById('returnTime')?.value;
+    const date        = document.getElementById('date')?.value;
 
-            if (filtered.length === 0) {
-                list.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">📋</div>
-                        <h3>No passes found</h3>
-                        <p>Apply for an outing to get started</p>
-                    </div>`;
-                return;
-            }
+    if (!reason && !destination) return;
 
-            list.innerHTML = filtered.map((p, i) => `
-                <div class="request-card" style="animation-delay:${i * 0.1}s">
-                    <div class="request-card-header">
-                        <div>
-                            <strong>Pass #${p.id}</strong>
-                            <span style="color:var(--text-muted); margin-left:8px">${formatDate(p.date)}</span>
-                        </div>
-                        ${getStatusBadge(p.pass_status)}
-                    </div>
-                    ${renderPipeline(p.pass_status)}
-                    <div class="request-details">
-                        <div class="request-detail">
-                            <span class="detail-label">📍 Destination</span>
-                            <span class="detail-value">${p.destination}</span>
-                        </div>
-                        <div class="request-detail">
-                            <span class="detail-label">⏰ Exit</span>
-                            <span class="detail-value">${formatTime(p.exit_time)}</span>
-                        </div>
-                        <div class="request-detail">
-                            <span class="detail-label">⏳ Return</span>
-                            <span class="detail-value">${formatTime(p.return_time)}</span>
-                        </div>
-                        <div class="request-detail">
-                            <span class="detail-label">📄 Reason</span>
-                            <span class="detail-value">${p.reason}</span>
-                        </div>
-                    </div>
-                    <div class="request-actions">
-                        ${['warden_approved', 'exit_used'].includes(p.pass_status) ?
-                            `<button class="btn btn-primary btn-sm" onclick="viewQR(${p.id})">🎟️ View QR Codes</button>` : ''}
-                        ${['requested', 'hod_approved'].includes(p.pass_status) ?
-                            `<button class="btn btn-danger btn-sm" onclick="cancelPass(${p.id})">🚫 Cancel</button>` : ''}
-                    </div>
-                </div>
-            `).join('');
-        }
+    const el = document.getElementById('aiAnalyzer');
+    el.innerHTML = '<div style="text-align:center;padding:16px;"><div class="spinner"></div></div>';
 
-        // ── QR Modal ──
-        async function viewQR(passId) {
-            document.getElementById('qrModal').classList.add('active');
-            document.getElementById('qrContent').innerHTML = '<div class="spinner"></div>';
+    try {
+      const data = await apiFetch('/api/ai/analyze-reason', {
+        method: 'POST',
+        body: JSON.stringify({ reason, destination, exit_time: exitTime, return_time: returnTime, date })
+      });
+      const ai = data.ai;
+      const barColor = ai.level === 'low' ? '#10b981' : ai.level === 'medium' ? '#f59e0b' : '#ef4444';
+      const icon = ai.level === 'low' ? '🟢' : ai.level === 'medium' ? '🟡' : '🔴';
 
-            try {
-                const data = await apiFetch(`/api/student/qr/${passId}`);
-                const qr = data.qr_codes;
-                const pass = data.gate_pass;
+      el.innerHTML = `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:0.78rem;font-weight:600;color:var(--text-2);">RISK SCORE</span>
+            <span style="font-family:var(--font-mono);font-size:1rem;font-weight:700;color:${barColor};">${ai.score}/100</span>
+          </div>
+          <div class="ai-meter"><div class="ai-meter-fill" style="width:${ai.score}%;background:${barColor};"></div></div>
+          <div style="font-size:0.75rem;margin-top:4px;color:${barColor};">${icon} ${ai.level.toUpperCase()} RISK</div>
+        </div>
 
-                let html = '<div class="qr-container">';
+        <div style="padding:10px 12px;border-radius:var(--r-sm);margin-bottom:12px;font-size:0.8rem;
+             background:${ai.level==='low'?'rgba(16,185,129,0.08)':ai.level==='medium'?'rgba(245,158,11,0.08)':'rgba(239,68,68,0.08)'};
+             border:1px solid ${barColor}33;color:var(--text-2);">
+          ${ai.recommendation}
+        </div>
 
-                if (qr.exit) {
-                    html += `
-                        <div class="qr-card exit">
-                            <div class="qr-label">🟢 Exit QR</div>
-                            <img src="data:image/png;base64,${qr.exit.image}" alt="Exit QR Code" id="exitQrImg">
-                            <div class="qr-status">${qr.exit.is_used ? '❌ Used' : '✅ Active'}</div>
-                            <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="downloadQR('exitQrImg', 'exit_qr_pass_${passId}.png')">⬇ Download</button>
-                        </div>`;
-                }
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);margin-bottom:6px;">Prediction</div>
+          <div style="font-size:0.82rem;font-weight:600;">${data.approval_prediction}</div>
+        </div>
 
-                if (qr.entry) {
-                    html += `
-                        <div class="qr-card entry">
-                            <div class="qr-label">🔵 Entry QR</div>
-                            <img src="data:image/png;base64,${qr.entry.image}" alt="Entry QR Code" id="entryQrImg">
-                            <div class="qr-status">${qr.entry.is_used ? '❌ Used' : '✅ Active'}</div>
-                            <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="downloadQR('entryQrImg', 'entry_qr_pass_${passId}.png')">⬇ Download</button>
-                        </div>`;
-                }
+        ${data.suggestions && data.suggestions.length ? `
+        <div>
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);margin-bottom:6px;">💡 Suggestions</div>
+          ${data.suggestions.map(s => `<div class="ai-suggestion">${s}</div>`).join('')}
+        </div>` : ''}
 
-                html += '</div>';
-                document.getElementById('qrContent').innerHTML = html;
+        ${ai.factors && ai.factors.length ? `
+        <div style="margin-top:12px;">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);margin-bottom:6px;">Risk Factors</div>
+          ${ai.factors.map(f => `
+            <div class="ai-tip">
+              <div class="risk-factor-dot dot-${f.impact}" style="width:6px;height:6px;border-radius:50%;background:${f.impact==='low'?'#10b981':f.impact==='medium'?'#f59e0b':'#ef4444'};flex-shrink:0;margin-top:5px;"></div>
+              <div style="color:var(--text-2);">${f.reason}</div>
+            </div>`).join('')}
+        </div>` : ''}`;
+    } catch(err) {}
+  }
 
-            } catch (err) {
-                document.getElementById('qrContent').innerHTML = '<p style="color:var(--accent-red);text-align:center">Failed to load QR codes</p>';
-            }
-        }
+  function switchTab(tab, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'passes') loadPasses();
+  }
 
-        function closeQrModal() {
-            document.getElementById('qrModal').classList.remove('active');
-        }
+  document.getElementById('applyForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
 
-        function downloadQR(imgId, filename) {
-            const img = document.getElementById(imgId);
-            const link = document.createElement('a');
-            link.href = img.src;
-            link.download = filename;
-            link.click();
-        }
+    const outingDate = document.getElementById('date').value;
+    const today = new Date().toISOString().split('T')[0];
+    if (outingDate < today) {
+      showToast('Outing date cannot be in the past!', 'error');
+      return;
+    }
+    const returnDate = document.getElementById('returnDate').value;
+    if (returnDate < outingDate) {
+      showToast('Return date cannot be before outing date!', 'error');
+      return;
+    }
 
-        async function cancelPass(passId) {
-            if (!confirm('Cancel this gate pass request?')) return;
-            try {
-                await apiFetch(`/api/student/cancel/${passId}`, { method: 'POST' });
-                showToast('Gate pass cancelled', 'success');
-                loadPasses();
-            } catch (err) {}
-        }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner spinner-sm"></span> Submitting...';
+    try {
+      await apiFetch('/api/student/apply', {
+        method: 'POST',
+        body: JSON.stringify({
+          reason: document.getElementById('reason').value,
+          date: document.getElementById('date').value,
+          destination: document.getElementById('destination').value,
+          exit_time: document.getElementById('exitTime').value,
+          return_date: document.getElementById('returnDate').value,
+          return_time: document.getElementById('returnTime').value,
+          student_phone: document.getElementById('studentPhone').value,
+          parent_contact: document.getElementById('parentContact').value
+        })
+      });
+      showToast('Gate pass request submitted successfully!', 'success');
+      document.getElementById('applyForm').reset();
+      const todayReset = new Date().toISOString().split('T')[0];
+      document.getElementById('date').value = todayReset;
+      document.getElementById('date').min = todayReset;
+      document.getElementById('returnDate').value = todayReset;
+      document.getElementById('returnDate').min = todayReset;
+      switchTab('passes', document.getElementById('tabPassesBtn'));
+      document.getElementById('tabApplyBtn').classList.remove('active');
+    } catch (err) {
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '🚀 Submit Gate Pass Request';
+    }
+  });
 
-        // Close modal on overlay click
-        document.getElementById('qrModal').addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal-overlay')) closeQrModal();
-        });
-    </script>
+  async function loadPasses() {
+    try {
+      const data = await apiFetch('/api/student/passes');
+      allPasses = data.passes || [];
+      const cnt = document.getElementById('passCount');
+      if (allPasses.length) cnt.textContent = allPasses.length;
+      renderPasses();
+    } catch (err) {}
+  }
+
+  function filterPasses(filter, btn) {
+    currentFilter = filter;
+    if (btn) {
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    renderPasses();
+  }
+
+  function renderPasses() {
+    const list = document.getElementById('passesList');
+    let filtered = allPasses;
+    if (currentFilter === 'requested') filtered = allPasses.filter(p => ['requested','hod_approved'].includes(p.pass_status));
+    else if (currentFilter === 'approved')  filtered = allPasses.filter(p => ['warden_approved','exit_used'].includes(p.pass_status));
+    else if (currentFilter === 'completed') filtered = allPasses.filter(p => p.pass_status === 'completed');
+    else if (currentFilter === 'rejected')  filtered = allPasses.filter(p => ['rejected_hod','rejected_warden','cancelled'].includes(p.pass_status));
+
+    if (!filtered.length) {
+      list.innerHTML = `<div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <h3>No passes found</h3>
+        <p>Apply for an outing to get started</p>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = filtered.map((p, i) => `
+      <div class="request-card" style="animation-delay:${i*0.06}s;">
+        <div class="request-card-header">
+          <div>
+            <div style="font-weight:700;font-size:0.95rem;">Pass #${p.id} — ${p.destination}</div>
+            <div class="student-meta" style="margin-top:4px;">
+              <span>📅 ${formatDate(p.date)}</span>
+              <span>🕐 ${formatTime(p.exit_time)} – ${formatTime(p.return_time)}</span>
+              ${p.return_date && p.return_date !== p.date ? `<span>🔙 Return: ${formatDate(p.return_date)}</span>` : ''}
+            </div>
+          </div>
+          ${getStatusBadge(p.pass_status)}
+        </div>
+        ${renderPipeline(p.pass_status)}
+        <div class="request-details">
+          <div class="request-detail">
+            <span class="detail-label">📍 Destination</span>
+            <span class="detail-value">${p.destination}</span>
+          </div>
+          <div class="request-detail">
+            <span class="detail-label">🕐 Exit Time</span>
+            <span class="detail-value">${formatTime(p.exit_time)}</span>
+          </div>
+          <div class="request-detail">
+            <span class="detail-label">🕔 Return</span>
+            <span class="detail-value">${p.return_date && p.return_date !== p.date ? formatDate(p.return_date) + ' ' : ''}${formatTime(p.return_time)}</span>
+          </div>
+          <div class="request-detail">
+            <span class="detail-label">📱 Phone</span>
+            <span class="detail-value">${p.student_phone || '—'}</span>
+          </div>
+          <div class="request-detail">
+            <span class="detail-label">📄 Reason</span>
+            <span class="detail-value">${p.reason}</span>
+          </div>
+        </div>
+        <div class="request-actions">
+          ${['warden_approved','exit_used'].includes(p.pass_status)
+            ? `<button class="btn btn-primary btn-sm" onclick="viewQR(${p.id})">🎟️ View QR Codes</button>` : ''}
+          ${['requested','hod_approved'].includes(p.pass_status)
+            ? `<button class="btn btn-danger btn-sm" onclick="cancelPass(${p.id})">🚫 Cancel Request</button>` : ''}
+          <span style="flex:1;"></span>
+          <span style="font-size:0.72rem;color:var(--text-3);">Pass ID: #${p.id}</span>
+        </div>
+      </div>`).join('');
+  }
+
+  async function viewQR(passId) {
+    document.getElementById('qrModal').classList.add('active');
+    document.getElementById('qrContent').innerHTML = '<div class="spinner"></div>';
+    try {
+      const data = await apiFetch(`/api/student/qr/${passId}`);
+      const qr = data.qr_codes;
+      let html = '<div class="qr-container">';
+      if (qr.exit) html += `
+        <div class="qr-card exit">
+          <div class="qr-label">🟢 Exit QR Code</div>
+          <img src="data:image/png;base64,${qr.exit.image}" alt="Exit QR" id="exitQrImg">
+          <div class="qr-status">${qr.exit.is_used ? '❌ Already Used' : '✅ Active & Ready'}</div>
+          <button class="btn btn-ghost btn-sm mt-sm" onclick="downloadQR('exitQrImg','exit_qr_${passId}.png')">⬇ Download</button>
+        </div>`;
+      if (qr.entry) html += `
+        <div class="qr-card entry">
+          <div class="qr-label">🔵 Entry QR Code</div>
+          <img src="data:image/png;base64,${qr.entry.image}" alt="Entry QR" id="entryQrImg">
+          <div class="qr-status">${qr.entry.is_used ? '❌ Already Used' : '✅ Active & Ready'}</div>
+          <button class="btn btn-ghost btn-sm mt-sm" onclick="downloadQR('entryQrImg','entry_qr_${passId}.png')">⬇ Download</button>
+        </div>`;
+      html += '</div>';
+      document.getElementById('qrContent').innerHTML = html;
+    } catch (err) {
+      document.getElementById('qrContent').innerHTML = '<p style="color:var(--red);text-align:center;padding:20px;">Failed to load QR codes</p>';
+    }
+  }
+
+  function closeQrModal() { document.getElementById('qrModal').classList.remove('active'); }
+
+  function downloadQR(imgId, filename) {
+    const img = document.getElementById(imgId);
+    const a = document.createElement('a');
+    a.href = img.src; a.download = filename; a.click();
+  }
+
+  async function cancelPass(passId) {
+    if (!confirm('Are you sure you want to cancel this gate pass request?')) return;
+    try {
+      await apiFetch(`/api/student/cancel/${passId}`, { method: 'POST' });
+      showToast('Gate pass cancelled', 'info');
+      loadPasses();
+    } catch (err) {}
+  }
+
+  document.getElementById('qrModal').addEventListener('click', e => {
+    if (e.target.classList.contains('modal-overlay')) closeQrModal();
+  });
+</script>
 </body>
 </html>

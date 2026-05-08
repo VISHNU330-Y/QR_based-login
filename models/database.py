@@ -40,6 +40,8 @@ def init_db():
             date TEXT NOT NULL,
             exit_time TEXT NOT NULL,
             return_time TEXT NOT NULL,
+            return_date TEXT,
+            student_phone TEXT,
             parent_contact TEXT,
             hod_status TEXT DEFAULT 'pending' CHECK(hod_status IN ('pending', 'approved', 'rejected')),
             warden_status TEXT DEFAULT 'pending' CHECK(warden_status IN ('pending', 'approved', 'rejected')),
@@ -85,7 +87,28 @@ def init_db():
 
     conn.commit()
     conn.close()
+    migrate_db()
     print("[OK] Database initialized successfully!")
+
+
+def migrate_db():
+    """Add new columns to existing tables if they don't exist."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(gate_passes)")
+    existing_cols = {row['name'] for row in cursor.fetchall()}
+
+    migrations = [
+        ('return_date', 'ALTER TABLE gate_passes ADD COLUMN return_date TEXT'),
+        ('student_phone', 'ALTER TABLE gate_passes ADD COLUMN student_phone TEXT'),
+    ]
+    for col_name, sql in migrations:
+        if col_name not in existing_cols:
+            cursor.execute(sql)
+            print(f"  [MIGRATE] Added column '{col_name}' to gate_passes")
+
+    conn.commit()
+    conn.close()
 
 
 def query_db(query, args=(), one=False):
