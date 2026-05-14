@@ -115,28 +115,7 @@
       color: var(--text-1);
     }
 
-    /* print styles */
-    #printArea { display: none; }
-    #printArea.is-printing { display: block; }
-    @media print {
-      body * { visibility: hidden; }
-      #printArea, #printArea * { visibility: visible; }
-      #printArea {
-        position: fixed; top: 0; left: 0; width: 100%;
-        background: #fff; color: #000; padding: 20px;
-        display: block !important;
-      }
-      .print-header { text-align: center; margin-bottom: 20px; }
-      .print-header h1 { font-size: 1.3rem; margin: 0 0 4px; }
-      .print-header p  { font-size: 0.85rem; color: #555; margin: 0; }
-      .print-meta { margin-bottom: 12px; font-size: 0.8rem; color: #444; }
-      .print-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-      .print-table th, .print-table td {
-        border: 1px solid #ccc; padding: 7px 10px; text-align: left;
-      }
-      .print-table th { background: #f0f0f0; font-weight: 600; }
-      .print-footer { margin-top: 20px; font-size: 0.75rem; color: #888; text-align: right; }
-    }
+    /* No print styles needed here — printing uses a dedicated popup window */
   </style>
 </head>
 <body>
@@ -584,47 +563,70 @@
       return `<tr>${cells}</tr>`;
     }).join('');
 
-    const html = `
-      <div class="print-header">
-        <h1>GatePass Pro — Security Movement Report</h1>
-        <p>Generated on ${now}</p>
-      </div>
-      <div class="print-meta">
-        <strong>Date Range:</strong> ${from} to ${to} &nbsp;|
-        <strong>Type:</strong> ${type === 'all' ? 'All' : type} &nbsp;|
-        <strong>Search:</strong> ${search || '—'}<br>
-        <strong>Total Records:</strong> ${total} &nbsp;|
-        <strong>Exits:</strong> ${exits} &nbsp;|
-        <strong>Entries:</strong> ${entr}
-      </div>
-      <table class="print-table">
-        <thead><tr>
-          <th>#</th><th>Student</th><th>Roll No</th><th>Department</th>
-          <th>Type</th><th>Destination</th><th>Gate</th><th>Date &amp; Time</th>
-        </tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-      <div class="print-footer">GatePass Pro · Confidential · Printed ${now}</div>`;
-
-    const printArea = document.getElementById('printArea');
-    printArea.innerHTML = html;
-    printArea.classList.add('is-printing');
-
-    // Use onafterprint for reliable cleanup on both desktop and mobile.
-    // Also use a setTimeout fallback for browsers that don't fire onafterprint.
-    function cleanupPrint() {
-      printArea.classList.remove('is-printing');
-      window.onafterprint = null;
+    // Open a fresh, isolated popup window — no DOM conflicts, works on all browsers & mobile.
+    const win = window.open('', '_blank');
+    if (!win) {
+      showToast('Popup blocked. Please allow popups for this site.', 'warning');
+      return;
     }
-    window.onafterprint = cleanupPrint;
 
-    // Small delay ensures the DOM is rendered before the print dialog opens
-    // (critical on mobile where window.print() can be non-blocking).
-    setTimeout(() => {
+    win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Movement Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; color: #000; background: #fff; padding: 24px; }
+    h1 { font-size: 1.3rem; margin-bottom: 4px; }
+    .sub { font-size: 0.85rem; color: #555; margin-bottom: 20px; }
+    .meta { font-size: 0.8rem; color: #444; margin-bottom: 16px; line-height: 1.8; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { border: 1px solid #ccc; padding: 7px 10px; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tr { page-break-inside: avoid; }
+    .footer { margin-top: 20px; font-size: 0.75rem; color: #888; text-align: right; }
+    .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 12px; }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>GatePass Pro — Security Movement Report</h1>
+    <div class="sub">Generated on ${now}</div>
+  </div>
+  <div class="meta">
+    <strong>Date Range:</strong> ${from} to ${to} &nbsp;&nbsp;
+    <strong>Type:</strong> ${type === 'all' ? 'All' : type} &nbsp;&nbsp;
+    <strong>Search:</strong> ${search || '—'}<br>
+    <strong>Total Records:</strong> ${total} &nbsp;&nbsp;
+    <strong>Exits:</strong> ${exits} &nbsp;&nbsp;
+    <strong>Entries:</strong> ${entr}
+  </div>
+  <table>
+    <thead><tr>
+      <th>#</th><th>Student</th><th>Roll No</th><th>Department</th>
+      <th>Type</th><th>Destination</th><th>Gate</th><th>Date &amp; Time</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div class="footer">GatePass Pro &middot; Confidential &middot; Printed ${now}</div>
+  <script>
+    // Auto-print once the page has loaded, then close the window.
+    window.onload = function() {
       window.print();
-      // Fallback cleanup after 3 seconds in case onafterprint never fires
-      setTimeout(cleanupPrint, 3000);
-    }, 100);
+      window.onafterprint = function() { window.close(); };
+      // Fallback close for mobile browsers that don't fire onafterprint
+      setTimeout(function() { window.close(); }, 4000);
+    };
+  <\/script>
+</body>
+</html>`);
+    win.document.close();
   }
 </script>
 </body>
