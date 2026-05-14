@@ -116,12 +116,15 @@
     }
 
     /* print styles */
+    #printArea { display: none; }
+    #printArea.is-printing { display: block; }
     @media print {
       body * { visibility: hidden; }
       #printArea, #printArea * { visibility: visible; }
       #printArea {
-        position: absolute; top: 0; left: 0; width: 100%;
+        position: fixed; top: 0; left: 0; width: 100%;
         background: #fff; color: #000; padding: 20px;
+        display: block !important;
       }
       .print-header { text-align: center; margin-bottom: 20px; }
       .print-header h1 { font-size: 1.3rem; margin: 0 0 4px; }
@@ -603,10 +606,25 @@
       </table>
       <div class="print-footer">GatePass Pro · Confidential · Printed ${now}</div>`;
 
-    document.getElementById('printArea').innerHTML = html;
-    document.getElementById('printArea').style.display = 'block';
-    window.print();
-    document.getElementById('printArea').style.display = 'none';
+    const printArea = document.getElementById('printArea');
+    printArea.innerHTML = html;
+    printArea.classList.add('is-printing');
+
+    // Use onafterprint for reliable cleanup on both desktop and mobile.
+    // Also use a setTimeout fallback for browsers that don't fire onafterprint.
+    function cleanupPrint() {
+      printArea.classList.remove('is-printing');
+      window.onafterprint = null;
+    }
+    window.onafterprint = cleanupPrint;
+
+    // Small delay ensures the DOM is rendered before the print dialog opens
+    // (critical on mobile where window.print() can be non-blocking).
+    setTimeout(() => {
+      window.print();
+      // Fallback cleanup after 3 seconds in case onafterprint never fires
+      setTimeout(cleanupPrint, 3000);
+    }, 100);
   }
 </script>
 </body>
