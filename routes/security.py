@@ -170,14 +170,72 @@ def allow_entry(pass_id):
 @security_bp.route('/api/security/logs', methods=['GET'])
 @login_required(allowed_roles=['security'])
 def get_logs():
-    """Get recent security logs."""
-    logs = query_db(
-        '''SELECT sl.*, gp.destination, gp.date, gp.exit_time, gp.return_time,
-                  u.name as student_name, u.roll_no, u.department
-           FROM security_logs sl
-           JOIN gate_passes gp ON sl.pass_id = gp.id
-           JOIN users u ON gp.student_id = u.id
-           ORDER BY sl.timestamp DESC
-           LIMIT 50'''
-    )
+    """Get security logs with optional filters."""
+    from_date   = request.args.get('from_date', '')
+    to_date     = request.args.get('to_date', '')
+    action_type = request.args.get('action_type', 'all')
+    search      = request.args.get('search', '').strip()
+
+    query = '''
+        SELECT sl.*, gp.destination, gp.date, gp.exit_time, gp.return_time,
+               u.name as student_name, u.roll_no, u.department
+        FROM security_logs sl
+        JOIN gate_passes gp ON sl.pass_id = gp.id
+        JOIN users u ON gp.student_id = u.id
+        WHERE 1=1
+    '''
+    args = []
+
+    if from_date:
+        query += ' AND DATE(sl.timestamp) >= ?'
+        args.append(from_date)
+    if to_date:
+        query += ' AND DATE(sl.timestamp) <= ?'
+        args.append(to_date)
+    if action_type in ('exit', 'entry'):
+        query += ' AND sl.action_type = ?'
+        args.append(action_type)
+    if search:
+        query += ' AND (u.name LIKE ? OR u.roll_no LIKE ? OR u.department LIKE ?)'
+        like = f'%{search}%'
+        args.extend([like, like, like])
+
+    query += ' ORDER BY sl.timestamp DESC'
+
+    # Limit only when no date range is specified
+    if not from_date and not to_date:
+        query += ' LIMIT 200'
+
+    logs = query_db(query, tuple(args))
     return jsonify({'logs': logs})
+
+
+@security_bp.route('/api/security/stats', methods=['GET'])
+@login_required(allowed_roles=['security'])
+def get_stats():
+    """Get today's security statistics."""
+    exits_today = query_db(
+        '''SELECT COUNT(*) as count FROM security_logs
+           WHERE action_type = 'exit'
+             AND DATE(timestamp) = DATE('now', 'localtime')''',
+        one=True
+    )
+
+    entries_today = query_db(
+        '''SELECT COUNT(*) as count FROM security_logs
+           WHERE action_type = 'entry'
+             AND DATE(timestamp) = DATE('now', 'localtime')''',
+        one=True
+    )
+
+    currently_outside = query_db(
+        '''SELECT COUNT(*) as count FROM gate_passes
+           WHERE pass_status = 'exit_used' ''',
+        one=True
+    )
+
+    return jsonify({
+        'exits_today':       exits_today['count']       if exits_today       else 0,
+        'entries_today':     entries_today['count']     if entries_today     else 0,
+        'currently_outside': currently_outside['count'] if currently_outside else 0
+    })

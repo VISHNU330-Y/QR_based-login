@@ -19,6 +19,7 @@ def get_requests():
         FROM gate_passes gp
         JOIN users u ON gp.student_id = u.id
         WHERE gp.hod_status = 'approved'
+          AND gp.warden_status NOT IN ('waiting', 'not_applicable')
     '''
     args = []
 

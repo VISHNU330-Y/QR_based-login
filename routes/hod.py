@@ -60,7 +60,8 @@ def approve_request(pass_id):
 
     execute_db(
         '''UPDATE gate_passes
-           SET hod_status = 'approved', pass_status = 'hod_approved',
+           SET hod_status = 'approved', warden_status = 'pending',
+               pass_status = 'hod_approved',
                hod_id = ?, hod_remarks = ?
            WHERE id = ?''',
         (request.user['user_id'], remarks, pass_id)
@@ -106,7 +107,8 @@ def reject_request(pass_id):
 
     execute_db(
         '''UPDATE gate_passes
-           SET hod_status = 'rejected', pass_status = 'rejected_hod',
+           SET hod_status = 'rejected', warden_status = 'not_applicable',
+               pass_status = 'rejected_hod',
                hod_id = ?, hod_remarks = ?
            WHERE id = ?''',
         (request.user['user_id'], remarks, pass_id)

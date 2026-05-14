@@ -48,7 +48,7 @@ def apply_gate_pass():
            (student_id, reason, destination, date, exit_time, return_time,
             return_date, student_phone, parent_contact,
             hod_status, warden_status, pass_status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'requested')''',
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'waiting', 'requested')''',
         (
             request.user['user_id'],
             data['reason'],
